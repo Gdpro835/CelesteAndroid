@@ -1,0 +1,24 @@
+# Arquivos do jogo (propriedade da Maddy Makes Games) - NUNCA commitar
+/Celeste/
+*.exe
+Content/
+
+# Libs proprietárias (FMOD) - cada pessoa baixa a própria
+/fmod/
+libfmod*.so
+fmod*.dll
+
+# Repositórios de referência (clonados, não fazem parte do projeto)
+/refs/
+
+# Build
+bin/
+obj/
+/out/
+*.apk
+*.aab
+.vs/
+*.user
+
+# fnalibs baixadas (ver scripts/fetch-fnalibs.ps1)
+/natives/
