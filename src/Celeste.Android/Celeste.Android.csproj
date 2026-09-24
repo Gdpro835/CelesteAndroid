@@ -6,8 +6,8 @@
 		<RootNamespace>CelesteAndroid</RootNamespace>
 		<ApplicationId>org.celesteandroid.celeste</ApplicationId>
 		<ApplicationTitle>Celeste</ApplicationTitle>
-		<ApplicationVersion>2</ApplicationVersion>
-		<ApplicationDisplayVersion>1.0.0</ApplicationDisplayVersion>
+		<ApplicationVersion>3</ApplicationVersion>
+		<ApplicationDisplayVersion>1.0.1</ApplicationDisplayVersion>
 		<RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
 		<!-- APK instalável via adb install mesmo em Debug (sem Fast Deployment). -->
 		<EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
@@ -27,8 +27,9 @@
 	<PropertyGroup>
 		<!-- Arte extraída dos arquivos do jogo do usuário por scripts/generate-game-art.ps1 (fora do git). -->
 		<GameArtDir>$(MSBuildThisFileDirectory)GameArt\</GameArtDir>
-		<!-- -p:UseGameArt=false força o ícone/fundo originais (build público: sem arte oficial no APK). -->
-		<HasGameArt Condition="'$(UseGameArt)' != 'false' and Exists('$(GameArtDir)res\mipmap-xxxhdpi\ic_celeste.png')">true</HasGameArt>
+		<!-- Ícone (todas as builds, se gerado) e arte do launcher/logo (-p:UseGameArt=false a remove: build público). -->
+		<HasGameIcon Condition="Exists('$(GameArtDir)icon\res\mipmap-xxxhdpi\ic_celeste.png')">true</HasGameIcon>
+		<HasGameArt Condition="'$(UseGameArt)' != 'false' and Exists('$(GameArtDir)art\res')">true</HasGameArt>
 	</PropertyGroup>
 	<PropertyGroup Condition="'$(AndroidSigningKeyStore)' != ''">
 		<!-- Assinatura de release: passada pelo scripts/build-release.ps1, nunca commitada. -->
@@ -43,12 +44,19 @@
 		<AndroidNativeLibrary Include="$(RepoRoot)fmod\libs\android-arm64\*.so" Abi="arm64-v8a" />
 		<AndroidLibrary Include="$(RepoRoot)fmod\libs\android-arm64\fmod.jar" Bind="true" />
 	</ItemGroup>
+	<ItemGroup Condition="'$(HasGameIcon)' == 'true'">
+		<AndroidResource Include="$(GameArtDir)icon\res\**\*" Link="Resources\%(RecursiveDir)%(Filename)%(Extension)" />
+		<AndroidResource Include="ResourceAliases\icon_game.xml" Link="Resources\values\alias_icon.xml" />
+	</ItemGroup>
+	<ItemGroup Condition="'$(HasGameIcon)' != 'true'">
+		<AndroidResource Include="ResourceAliases\icon_fallback.xml" Link="Resources\values\alias_icon.xml" />
+	</ItemGroup>
 	<ItemGroup Condition="'$(HasGameArt)' == 'true'">
-		<AndroidResource Include="$(GameArtDir)res\**\*" Link="Resources\%(RecursiveDir)%(Filename)%(Extension)" />
-		<AndroidResource Include="ResourceAliases\game.xml" Link="Resources\values\aliases.xml" />
+		<AndroidResource Include="$(GameArtDir)art\res\**\*" Link="Resources\%(RecursiveDir)%(Filename)%(Extension)" />
+		<AndroidResource Include="ResourceAliases\art_game.xml" Link="Resources\values\alias_art.xml" />
 	</ItemGroup>
 	<ItemGroup Condition="'$(HasGameArt)' != 'true'">
-		<AndroidResource Include="ResourceAliases\fallback.xml" Link="Resources\values\aliases.xml" />
+		<AndroidResource Include="ResourceAliases\art_fallback.xml" Link="Resources\values\alias_art.xml" />
 	</ItemGroup>
 	<ItemGroup>
 		<None Remove="ResourceAliases\**" />

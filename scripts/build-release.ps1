@@ -36,8 +36,10 @@ else {
 	Write-Warning "No release keystore at ${keyEnv}: signing with the debug key."
 }
 
+# The icon (art\icon.*) goes into every build; key art and logo only into -Personal ones.
+& (Join-Path $PSScriptRoot 'generate-game-art.ps1') | Out-Null
+
 if ($Personal) {
-	& (Join-Path $PSScriptRoot 'generate-game-art.ps1') | Out-Null
 	$name = "CelesteAndroid-$version-personal.apk"
 	$flags = @('-p:UseGameArt=true')
 	if ($EmbedGame) { $flags += '-p:EmbedGame=true' }
@@ -58,12 +60,12 @@ if ($LASTEXITCODE -ne 0) { throw 'publish failed' }
 $apk = Get-ChildItem $publish -Filter *-Signed.apk | Select-Object -First 1
 
 if (-not $Personal) {
-	# Safety net: a public APK must never contain game files or official art.
+	# Safety net: a public APK must never contain game files, the key art or the logo.
 	Add-Type -AssemblyName System.IO.Compression.FileSystem
 	$zip = [IO.Compression.ZipFile]::OpenRead($apk.FullName)
 	try {
-		$bad = $zip.Entries | Where-Object { $_.FullName -like 'assets/game/*' -or $_.FullName -match 'celeste_art|celeste_logo|ic_celeste' }
-		if ($bad) { throw "Public APK contains game files/official art ($(@($bad).Count) entries); aborting." }
+		$bad = $zip.Entries | Where-Object { $_.FullName -like 'assets/game/*' -or $_.FullName -match 'celeste_art|celeste_logo' }
+		if ($bad) { throw "Public APK contains game files/key art/logo ($(@($bad).Count) entries); aborting." }
 	}
 	finally { $zip.Dispose() }
 }

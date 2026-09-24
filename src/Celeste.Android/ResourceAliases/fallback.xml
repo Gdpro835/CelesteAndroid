@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Build sem a arte do jogo (ex.: versão compartilhável): ícone e fundo originais. -->
-<resources>
-	<item type="mipmap" name="app_icon">@mipmap/ic_fallback</item>
-	<item type="drawable" name="launcher_art">@color/celeste_sky</item>
-</resources>

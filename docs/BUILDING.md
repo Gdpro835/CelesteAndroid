@@ -41,6 +41,7 @@ These are **not** in the repository and must never be committed (they're in `.gi
 | `Celeste/` | Your Celeste PC copy, **FNA build** (`Celeste.exe`, `FNA.dll`, `Content/`). Steam: *opengl* beta. itch.io: Linux zip. Used for compiling the patch module and, optionally, for personal builds. |
 | `fmod/libs/android-arm64/` | `libfmod.so`, `libfmodstudio.so`, `fmod.jar` from the FMOD Engine **1.10.14** Android package (`api/lowlevel/lib/arm64-v8a`, `api/studio/lib/arm64-v8a`, `api/lowlevel/lib/fmod.jar`) |
 | `fmod/libs/win-x64/` | *(desktop host only)* `fmod64.dll` from the Windows package, copied as **both** `fmod.dll` and `fmod64.dll`, plus `fmodstudio64.dll` copied as `fmodstudio.dll` |
+| `art/icon.png` (or `.jpg`) | *(optional)* square image for the app icon, used by every build. Without it, personal builds crop the key art and public builds use the original mountain icon. |
 | `art/logo.png` | *(optional, personal builds)* logo shown in the launcher instead of the text title |
 
 Why 1.10.14: Celeste's `.bank` files were built with FMOD Studio 1.10, and the game's C# FMOD wrapper matches that API.
