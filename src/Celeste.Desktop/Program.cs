@@ -22,6 +22,12 @@ namespace CelesteAndroid.Desktop
 			{
 				CelestePatcher.Patch(celesteExe, modDll, patchedDll, new[] { hostDir, RuntimeEnvironment.GetRuntimeDirectory() });
 			}
+			// Usado pelo scripts/deploy-android.ps1: o mesmo Celeste.dll serve para o Android.
+			if (Array.IndexOf(args, "--patch-only") >= 0)
+			{
+				Console.WriteLine(patchedDll);
+				return 0;
+			}
 
 			// Mesmo contrato que o app Android vai usar (ver CelesteAndroid.HostConfig).
 			AppContext.SetData("CelesteAndroid.Platform", "Android");

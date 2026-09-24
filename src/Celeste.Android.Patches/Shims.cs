@@ -37,6 +37,23 @@ namespace CelesteAndroid
 		}
 	}
 
+	public static class GCShim
+	{
+		/// <summary>O runtime Mono do Android lança PlatformNotSupportedException ao mudar a latência do GC.</summary>
+		[MonoModLinkFrom("System.Void System.Runtime.GCSettings::set_LatencyMode(System.Runtime.GCLatencyMode)")]
+		public static void SetLatencyMode(System.Runtime.GCLatencyMode mode)
+		{
+			// Por reflexão: uma chamada direta também seria religada para cá (recursão infinita).
+			try
+			{
+				typeof(System.Runtime.GCSettings).GetProperty(nameof(System.Runtime.GCSettings.LatencyMode))!.SetValue(null, mode);
+			}
+			catch (TargetInvocationException e) when (e.InnerException is PlatformNotSupportedException)
+			{
+			}
+		}
+	}
+
 	/// <summary>
 	/// O Celeste usa GetEntryAssembly() para achar os próprios tipos; com um loader, o "entry" não é ele.
 	/// </summary>
