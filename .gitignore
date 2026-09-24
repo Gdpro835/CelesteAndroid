@@ -22,3 +22,4 @@ obj/
 
 # fnalibs baixadas (ver scripts/fetch-fnalibs.ps1)
 /natives/
+/build/
