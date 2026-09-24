@@ -38,5 +38,5 @@ if ($Content) {
 
 if (-not $NoLaunch) {
 	& $adb logcat -c
-	& $adb shell am start -n "$pkg/.CelesteActivity" | Out-Host
+	& $adb shell am start -n "$pkg/.LauncherActivity" | Out-Host
 }

@@ -12,40 +12,21 @@ namespace CelesteAndroid
 	/// </summary>
 	public static class CelesteLauncher
 	{
-		// Armazenamento interno do app: sem FUSE (mais rápido) e sem problemas de dono dos arquivos.
-
-		/// <summary>Pasta com os arquivos do jogo do usuário (Content/ etc.).</summary>
-		public static string GameDir(Context context) => Path.Combine(context.FilesDir!.AbsolutePath, "Celeste");
-
-		/// <summary>Celeste.dll gerado pelo Celeste.Patcher.</summary>
-		public static string PatchedDll(Context context) => Path.Combine(context.FilesDir!.AbsolutePath, "patched", "Celeste.dll");
-
-		/// <summary>Saves e configurações do jogo.</summary>
-		public static string UserDir(Context context) => Path.Combine(context.FilesDir!.AbsolutePath, "userdata");
-
-		public static bool IsInstalled(Context context)
-		{
-			bool dll = File.Exists(PatchedDll(context));
-			bool content = Directory.Exists(Path.Combine(GameDir(context), "Content"));
-			Log.Info(CelesteActivity.LogTag, $"Celeste.dll={dll} Content={content} ({GameDir(context)})");
-			return dll && content;
-		}
-
 		public static void Run(Context context)
 		{
-			string gameDir = GameDir(context);
-			string patchedDll = PatchedDll(context);
-			Log.Info(CelesteActivity.LogTag, $"Iniciando Celeste de {gameDir}");
+			string gameDir = GameInstaller.GameDir(context);
+			Log.Info(GameActivity.LogTag, $"Iniciando Celeste de {gameDir}");
 
 			// Ver CelesteAndroid.HostConfig (Celeste.Android.Patches).
 			AppContext.SetData("CelesteAndroid.Platform", "Android");
-			AppContext.SetData("CelesteAndroid.PrefPath", UserDir(context));
+			AppContext.SetData("CelesteAndroid.PrefPath", GameInstaller.UserDir(context));
+			AppContext.SetData("CelesteAndroid.BackgroundPath", GameInstaller.BackgroundPng(context));
 
 			// O FNA resolve o Content relativo ao diretório de trabalho no Android.
 			AppContext.SetData("APP_CONTEXT_BASE_DIRECTORY", gameDir + Path.DirectorySeparatorChar);
 			Environment.CurrentDirectory = gameDir;
 
-			Assembly celeste = AssemblyLoadContext.Default.LoadFromAssemblyPath(patchedDll);
+			Assembly celeste = AssemblyLoadContext.Default.LoadFromAssemblyPath(GameInstaller.PatchedDll(context));
 
 			// Engine.AssemblyDirectory vem de Assembly.Location, que não aponta para o jogo.
 			celeste.GetType("Monocle.Engine", throwOnError: true)!

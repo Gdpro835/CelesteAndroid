@@ -12,8 +12,12 @@ namespace CelesteAndroid
 	{
 		public const string PlatformKey = "CelesteAndroid.Platform";
 		public const string PrefPathKey = "CelesteAndroid.PrefPath";
+		public const string BackgroundPathKey = "CelesteAndroid.BackgroundPath";
 
 		public static string Platform => AppContext.GetData(PlatformKey) as string ?? "Android";
+
+		/// <summary>Imagem para as faixas laterais em telas mais largas que 16:9 (opcional).</summary>
+		public static string? BackgroundPath => AppContext.GetData(BackgroundPathKey) as string;
 
 		public static string PrefPath => AppContext.GetData(PrefPathKey) as string
 			?? throw new InvalidOperationException($"{PrefPathKey} não foi definido pelo host.");

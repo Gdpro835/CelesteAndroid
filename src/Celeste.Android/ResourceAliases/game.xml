@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Build com a arte do jogo (GameArt/, gerada por scripts/generate-game-art.ps1). -->
+<resources>
+	<item type="mipmap" name="app_icon">@mipmap/ic_celeste</item>
+	<item type="drawable" name="launcher_art">@drawable/celeste_art</item>
+</resources>

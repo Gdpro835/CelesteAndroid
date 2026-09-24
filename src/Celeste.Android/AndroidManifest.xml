@@ -5,6 +5,7 @@
 	<uses-feature android:name="android.hardware.gamepad" android:required="false" />
 	<uses-feature android:name="android.software.leanback" android:required="false" />
 	<uses-permission android:name="android.permission.VIBRATE" />
-	<application android:label="Celeste" android:hasCode="true" android:isGame="true"
+	<application android:label="Celeste" android:icon="@mipmap/app_icon" android:roundIcon="@mipmap/app_icon"
+		android:theme="@style/Theme.Celeste" android:hasCode="true" android:isGame="true"
 		android:appCategory="game" android:allowBackup="true" />
 </manifest>

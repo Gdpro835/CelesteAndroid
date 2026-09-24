@@ -24,7 +24,9 @@ namespace CelesteAndroid.Patcher
 			{
 				InputPath = celesteExe,
 				OutputPath = outputDll,
-				ReadingMode = ReadingMode.Immediate,
+				// Deferred: o Cecil só resolve o que usa. No Android não há mscorlib/System.Runtime como
+				// arquivos, e o modo Immediate tenta resolver os tipos de todos os atributos.
+				ReadingMode = ReadingMode.Deferred,
 				MissingDependencyThrow = false,
 			};
 			modder.DependencyDirs.AddRange(dependencyDirs);

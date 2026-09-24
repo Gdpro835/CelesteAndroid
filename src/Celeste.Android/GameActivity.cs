@@ -9,22 +9,26 @@ using Org.Libsdl.App;
 
 namespace CelesteAndroid
 {
+	/// <summary>
+	/// Roda o jogo. Fica num processo próprio (":game") porque o Celeste e o FNA guardam estado estático:
+	/// cada partida começa num processo novo, e o processo morre quando o jogo fecha.
+	/// </summary>
 	[Activity(
-		Name = "org.celesteandroid.celeste.CelesteActivity",
+		Name = "org.celesteandroid.celeste.GameActivity",
 		Label = "Celeste",
-		MainLauncher = true,
-		Exported = true,
-		Theme = "@android:style/Theme.NoTitleBar.Fullscreen",
+		Process = ":game",
+		Exported = false,
+		Theme = "@style/Theme.Celeste",
 		ScreenOrientation = ScreenOrientation.SensorLandscape,
-		LaunchMode = LaunchMode.SingleInstance,
-		AlwaysRetainTaskState = true,
+		LaunchMode = LaunchMode.SingleTask,
 		HardwareAccelerated = true,
 		ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.ScreenLayout
 			| ConfigChanges.Keyboard | ConfigChanges.KeyboardHidden | ConfigChanges.Navigation
 			| ConfigChanges.UiMode | ConfigChanges.Density | ConfigChanges.SmallestScreenSize)]
-	public class CelesteActivity : SDLActivity
+	public class GameActivity : SDLActivity
 	{
 		public const string LogTag = "CelesteAndroid";
+		public const string ExtraDriver = "driver";
 
 		// O Java carrega SDL3 e FMOD (o FMOD precisa estar carregado antes do FMOD.init);
 		// FNA3D/FAudio são carregados pelo .NET via DllImport.
@@ -41,6 +45,8 @@ namespace CelesteAndroid
 		{
 			Org.Fmod.FMOD.Close();
 			base.OnDestroy();
+			if (IsFinishing)
+				Process.KillProcess(Process.MyPid());
 		}
 
 		// Chamado pelo SDL na thread "SDLThread" depois que a superfície existe; substitui o SDL_main nativo.
@@ -51,27 +57,27 @@ namespace CelesteAndroid
 			FNALoggerEXT.LogWarn = msg => Log.Warn(LogTag, msg);
 			FNALoggerEXT.LogError = msg => Log.Error(LogTag, msg);
 
-			// Diagnóstico: adb shell am start -n org.celesteandroid.celeste/.CelesteActivity --es driver OpenGL
-			string? driver = Intent?.GetStringExtra("driver");
+			// "OpenGL" força o driver GLES; o padrão é Vulkan (SDL_GPU).
+			string? driver = Intent?.GetStringExtra(ExtraDriver);
 			if (!string.IsNullOrEmpty(driver))
 				SDL3.SDL.SDL_SetHint("FNA3D_FORCE_DRIVER", driver);
 
 			try
 			{
-				if (CelesteLauncher.IsInstalled(this))
+				if (GameInstaller.IsInstalled(this))
 				{
 					CelesteLauncher.Run(this);
 				}
 				else
 				{
-					Log.Warn(LogTag, $"Jogo não encontrado em {CelesteLauncher.GameDir(this)}; rodando HelloGame.");
+					Log.Warn(LogTag, "Jogo não instalado; rodando HelloGame.");
 					using HelloGame game = new();
 					game.Run();
 				}
 			}
 			catch (Exception e)
 			{
-				Log.Error(LogTag, (e is TargetInvocationException { InnerException: not null } tie ? tie.InnerException : e).ToString());
+				Log.Error(LogTag, (e is TargetInvocationException { InnerException: not null } tie ? tie.InnerException! : e).ToString());
 				throw;
 			}
 		}
