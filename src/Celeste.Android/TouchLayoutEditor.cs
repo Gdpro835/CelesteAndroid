@@ -43,7 +43,7 @@ namespace CelesteAndroid
 			selected = new Paint(PaintFlags.AntiAlias) { Color = Color.Argb(255, 242, 184, 216) };
 			ink = new Paint(PaintFlags.AntiAlias) { Color = Color.Argb(255, 18, 12, 34) };
 			ink.TextAlign = Paint.Align.Center;
-			ink.Typeface = Typeface.DefaultBold!;
+			ink.SetTypeface(Typeface.Create("sans-serif-medium", TypefaceStyle.Bold));
 			Apply(spec);
 		}
 
@@ -58,8 +58,8 @@ namespace CelesteAndroid
 			}
 		}
 
-		/// <summary>Layout atual, no formato que o jogo entende.</summary>
-		public TouchLayoutSpec Layout => new(BuildSpecs(), scale);
+		/// <summary>Layout atual, no formato que o jogo entende (Spec: "Layout" colidiria com View.Layout).</summary>
+		public TouchLayoutSpec Spec => new(BuildSpecs(), scale);
 
 		public void Apply(TouchLayoutSpec spec)
 		{
@@ -117,7 +117,7 @@ namespace CelesteAndroid
 
 		protected override void OnDraw(Canvas? canvas)
 		{
-			base.OnDraw(canvas);
+			base.OnDraw(canvas!);
 			if (canvas == null || Width <= 0 || Height <= 0)
 			{
 				return;
@@ -186,7 +186,7 @@ namespace CelesteAndroid
 				case MotionEventActions.Move:
 					if (dragging >= 0)
 					{
-						Drag(dragging, e.GetX(), e.GetY());
+						MoveControl(dragging, e.GetX(), e.GetY());
 						Invalidate();
 					}
 					return true;
@@ -218,7 +218,7 @@ namespace CelesteAndroid
 			return found;
 		}
 
-		private void Drag(int index, float touchX, float touchY)
+		private void MoveControl(int index, float touchX, float touchY)
 		{
 			float radius = Radius(index);
 			float marginX = game.Width() > 0f ? radius / game.Width() : 0f;

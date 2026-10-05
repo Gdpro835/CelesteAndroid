@@ -410,7 +410,7 @@ namespace CelesteAndroid
 			var done = LinkText("Save");
 			done.Click += (_, _) =>
 			{
-				LauncherPrefs.SetTouchLayout(this, editor.Layout.Encode());
+				LauncherPrefs.SetTouchLayout(this, editor.Spec.Encode());
 				CloseTouchLayout();
 			};
 			actions.AddView(done);
@@ -423,11 +423,11 @@ namespace CelesteAndroid
 
 		private void CloseTouchLayout()
 		{
-			if (touchOverlay != null)
+			if (touchOverlay is View overlay)
 			{
-				root.RemoveView(touchOverlay);
-				touchOverlay = null;
+				root.RemoveView(overlay);
 			}
+			touchOverlay = null;
 		}
 
 		private void PickFolder()
