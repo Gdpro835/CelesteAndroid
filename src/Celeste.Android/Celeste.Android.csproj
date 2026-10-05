@@ -37,7 +37,7 @@
 	</PropertyGroup>
 	<ItemGroup>
 		<!-- Contrato com o jogo patcheado: compilado aqui dentro (não referenciado). -->
-		<Compile Include="$(RepoRoot)Shared/HostConfig.cs" Link="Shared/HostConfig.cs" />
+		<Compile Include="$(RepoRoot)src/Shared/HostConfig.cs" Link="Shared/HostConfig.cs" />
 		<!-- Java do SDL3 (SDLActivity etc.), compilado no APK e com bindings C# para subclassificar. -->
 		<AndroidJavaSource Include="$(RepoRoot)external/SDL/android-project/app/src/main/java/org/libsdl/app/*.java" Bind="true" />
 		<TransformFile Include="Transforms/Metadata.xml" />
