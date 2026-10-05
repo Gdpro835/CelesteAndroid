@@ -15,6 +15,7 @@ Celeste is a C# game built on **FNA** (an XNA 4 reimplementation). `Celeste.exe`
 
 ```
 src/
+  Shared/HostConfig.cs       the host↔game contract, compiled into each host (see below)
   Celeste.Android/           .NET for Android app (launcher + game activity)
     LauncherActivity.cs      UI: key art, PLAY, import folder/.zip/saves, graphics + touch toggles
     LauncherPrefs.cs         shared preferences (graphics driver, touch controls)
@@ -30,6 +31,12 @@ src/
 external/FNA, external/SDL   submodules
 scripts/                     natives build, release build, device deploy, art extraction
 ```
+
+## Host contract (`src/Shared/HostConfig.cs`)
+
+The host (the Android activity or `Celeste.Desktop`) has to tell the game where things are before it starts: the platform the SDL2 shim reports, the pref path (`SDL_GetPrefPath`) and the pillarbox background. The game dll is loaded at runtime and can't be referenced directly, so the values travel through `AppContext` under `CelesteAndroid.*` keys — published with `HostConfig.Publish(platform, prefPath, backgroundPath, touchControls)` and read back by the patched game through `HostConfig.Platform` / `PrefPath` / `BackgroundPath` / `TouchControlsEnabled`.
+
+`HostConfig.cs` is not a project of its own: the same file is added as a `<Compile Include>` to the app, the patch module and the desktop host, so each assembly carries its own copy of the type. A shared *assembly* would be worse than the duplication — on the device the patch module is merged into `Celeste.dll` by MonoMod and the app can't reference the game dll, so a fourth dll would have to keep the same identity on both sides at runtime (the same reason the patch module is referenced with `ReferenceOutputAssembly="false"`). One source file, three copies of a small static class, nothing to resolve at load time.
 
 ## Boot sequence on Android
 
@@ -70,7 +77,7 @@ Celeste is a controller/keyboard game, so a phone without a controller needs art
 
 The pad fades out after ~6 s without touches (a controller player shouldn't have buttons in the way) and the touch that brings it back presses nothing: a brush against the screen doesn't dash. Holding the finger down works from the next frame on.
 
-It can be turned off (or back on) in the launcher: `LauncherPrefs` → `CelesteLauncher` → `AppContext.SetData("CelesteAndroid.TouchControls", "1"|"0")` → `HostConfig.TouchControlsEnabled`. A host that doesn't set the key (the desktop one) gets no on-screen controls.
+It can be turned off (or back on) in the launcher: `LauncherPrefs` → `CelesteLauncher` → `HostConfig.Publish(..., touchControls)` → `HostConfig.TouchControlsEnabled`. A host that doesn't ask for them (the desktop one) gets no on-screen controls.
 
 Costs and limits: injecting during the draw phase means FNA picks the key up at the start of the next tick, so there is about one frame of latency (the same as any key press in the game). The pad has no way to type text or use the journal (Tab); those are not needed to play.
 

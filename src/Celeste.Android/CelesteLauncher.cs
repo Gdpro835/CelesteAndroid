@@ -17,12 +17,9 @@ namespace CelesteAndroid
 			string gameDir = GameInstaller.GameDir(context);
 			Log.Info(GameActivity.LogTag, $"Iniciando Celeste de {gameDir}");
 
-			// Ver CelesteAndroid.HostConfig (Celeste.Android.Patches).
-			AppContext.SetData("CelesteAndroid.Platform", "Android");
-			AppContext.SetData("CelesteAndroid.PrefPath", GameInstaller.UserDir(context));
-			AppContext.SetData("CelesteAndroid.BackgroundPath", GameInstaller.BackgroundPng(context));
+			// Ver CelesteAndroid.HostConfig (compilado de src/Shared/HostConfig.cs).
 			bool touch = LauncherPrefs.TouchControls(context);
-			AppContext.SetData("CelesteAndroid.TouchControls", touch ? "1" : "0");
+			HostConfig.Publish("Android", GameInstaller.UserDir(context), GameInstaller.BackgroundPng(context), touch);
 			Log.Info(GameActivity.LogTag, $"Controles de toque: {(touch ? "ligados" : "desligados")}");
 
 			// O FNA resolve o Content relativo ao diretório de trabalho no Android.

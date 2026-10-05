@@ -10,15 +10,19 @@
 		<AssemblyName>CelesteDesktop</AssemblyName>
 	</PropertyGroup>
 	<ItemGroup>
-		<ProjectReference Include="..\..\external\FNA\FNA.Core.csproj" />
-		<ProjectReference Include="..\Steamworks.NET\Steamworks.NET.csproj" />
-		<ProjectReference Include="..\Celeste.Patcher\Celeste.Patcher.csproj" />
-		<ProjectReference Include="..\Celeste.Android.Patches\Celeste.Android.Patches.csproj"
+		<!-- Contrato com o jogo patcheado: compilado aqui dentro (não referenciado). -->
+		<Compile Include="$(RepoRoot)Shared/HostConfig.cs" Link="Shared/HostConfig.cs" />
+	</ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="../../external/FNA/FNA.Core.csproj" />
+		<ProjectReference Include="../Steamworks.NET/Steamworks.NET.csproj" />
+		<ProjectReference Include="../Celeste.Patcher/Celeste.Patcher.csproj" />
+		<ProjectReference Include="../Celeste.Android.Patches/Celeste.Android.Patches.csproj"
 			ReferenceOutputAssembly="false" OutputItemType="Content" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 	<ItemGroup>
 		<!-- fnalibs (SDL3, FNA3D, FAudio) e FMOD 1.10.14 x64 -->
-		<None Include="$(RepoRoot)natives\win-x64\*.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
-		<None Include="$(RepoRoot)fmod\libs\win-x64\*.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+		<None Include="$(RepoRoot)natives/win-x64/*.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+		<None Include="$(RepoRoot)fmod/libs/win-x64/*.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
 	</ItemGroup>
 </Project>

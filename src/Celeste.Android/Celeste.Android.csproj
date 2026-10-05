@@ -26,54 +26,69 @@
 	</PropertyGroup>
 	<PropertyGroup>
 		<!-- Arte extraída dos arquivos do jogo do usuário por scripts/generate-game-art.ps1 (fora do git). -->
-		<GameArtDir>$(MSBuildThisFileDirectory)GameArt\</GameArtDir>
+		<GameArtDir>$(MSBuildThisFileDirectory)GameArt/</GameArtDir>
 		<!-- Ícone (todas as builds, se gerado) e arte do launcher/logo (-p:UseGameArt=false a remove: build público). -->
-		<HasGameIcon Condition="Exists('$(GameArtDir)icon\res\mipmap-xxxhdpi\ic_celeste.png')">true</HasGameIcon>
-		<HasGameArt Condition="'$(UseGameArt)' != 'false' and Exists('$(GameArtDir)art\res')">true</HasGameArt>
+		<HasGameIcon Condition="Exists('$(GameArtDir)icon/res/mipmap-xxxhdpi/ic_celeste.png')">true</HasGameIcon>
+		<HasGameArt Condition="'$(UseGameArt)' != 'false' and Exists('$(GameArtDir)art/res')">true</HasGameArt>
 	</PropertyGroup>
 	<PropertyGroup Condition="'$(AndroidSigningKeyStore)' != ''">
 		<!-- Assinatura de release: passada pelo scripts/build-release.ps1, nunca commitada. -->
 		<AndroidKeyStore>true</AndroidKeyStore>
 	</PropertyGroup>
 	<ItemGroup>
+		<!-- Contrato com o jogo patcheado: compilado aqui dentro (não referenciado). -->
+		<Compile Include="$(RepoRoot)Shared/HostConfig.cs" Link="Shared/HostConfig.cs" />
 		<!-- Java do SDL3 (SDLActivity etc.), compilado no APK e com bindings C# para subclassificar. -->
-		<AndroidJavaSource Include="$(RepoRoot)external\SDL\android-project\app\src\main\java\org\libsdl\app\*.java" Bind="true" />
-		<TransformFile Include="Transforms\Metadata.xml" />
-		<AndroidNativeLibrary Include="$(RepoRoot)natives\android-arm64\*.so" Abi="arm64-v8a" />
+		<AndroidJavaSource Include="$(RepoRoot)external/SDL/android-project/app/src/main/java/org/libsdl/app/*.java" Bind="true" />
+		<TransformFile Include="Transforms/Metadata.xml" />
+		<AndroidNativeLibrary Include="$(RepoRoot)natives/android-arm64/*.so" Abi="arm64-v8a" />
 		<!-- FMOD 1.10.14 (mesma versão dos .bank do jogo). Proprietário: fica fora do git. -->
-		<AndroidNativeLibrary Include="$(RepoRoot)fmod\libs\android-arm64\*.so" Abi="arm64-v8a" />
-		<AndroidLibrary Include="$(RepoRoot)fmod\libs\android-arm64\fmod.jar" Bind="true" />
+		<AndroidNativeLibrary Include="$(RepoRoot)fmod/libs/android-arm64/*.so" Abi="arm64-v8a" />
+		<AndroidLibrary Include="$(RepoRoot)fmod/libs/android-arm64/fmod.jar" Bind="true" />
 	</ItemGroup>
 	<ItemGroup Condition="'$(HasGameIcon)' == 'true'">
-		<AndroidResource Include="$(GameArtDir)icon\res\**\*" Link="Resources\%(RecursiveDir)%(Filename)%(Extension)" />
-		<AndroidResource Include="ResourceAliases\icon_game.xml" Link="Resources\values\alias_icon.xml" />
+		<AndroidResource Include="$(GameArtDir)icon/res/**/*" Link="Resources/%(RecursiveDir)%(Filename)%(Extension)" />
+		<AndroidResource Include="ResourceAliases/icon_game.xml" Link="Resources/values/alias_icon.xml" />
 	</ItemGroup>
 	<ItemGroup Condition="'$(HasGameIcon)' != 'true'">
-		<AndroidResource Include="ResourceAliases\icon_fallback.xml" Link="Resources\values\alias_icon.xml" />
+		<AndroidResource Include="ResourceAliases/icon_fallback.xml" Link="Resources/values/alias_icon.xml" />
 	</ItemGroup>
 	<ItemGroup Condition="'$(HasGameArt)' == 'true'">
-		<AndroidResource Include="$(GameArtDir)art\res\**\*" Link="Resources\%(RecursiveDir)%(Filename)%(Extension)" />
-		<AndroidResource Include="ResourceAliases\art_game.xml" Link="Resources\values\alias_art.xml" />
+		<AndroidResource Include="$(GameArtDir)art/res/**/*" Link="Resources/%(RecursiveDir)%(Filename)%(Extension)" />
+		<AndroidResource Include="ResourceAliases/art_game.xml" Link="Resources/values/alias_art.xml" />
 	</ItemGroup>
 	<ItemGroup Condition="'$(HasGameArt)' != 'true'">
-		<AndroidResource Include="ResourceAliases\art_fallback.xml" Link="Resources\values\alias_art.xml" />
+		<AndroidResource Include="ResourceAliases/art_fallback.xml" Link="Resources/values/alias_art.xml" />
 	</ItemGroup>
 	<ItemGroup>
-		<None Remove="ResourceAliases\**" />
+		<None Remove="ResourceAliases/**" />
 	</ItemGroup>
 	<!-- -p:EmbedGame=true: APK pessoal com o jogo do usuário dentro (instala sozinho; NUNCA distribuir). -->
 	<ItemGroup Condition="'$(EmbedGame)' == 'true'">
 		<AndroidAsset Include="$(CelesteGameDir)Celeste.exe" LogicalName="game/Celeste.exe" />
-		<AndroidAsset Include="$(CelesteGameDir)Content\**\*" LogicalName="game/Content/%(RecursiveDir)%(Filename)%(Extension)" />
+		<AndroidAsset Include="$(CelesteGameDir)Content/**/*" LogicalName="game/Content/%(RecursiveDir)%(Filename)%(Extension)" />
 	</ItemGroup>
 	<ItemGroup>
-		<ProjectReference Include="..\..\external\FNA\FNA.Core.csproj" />
-		<ProjectReference Include="..\Steamworks.NET\Steamworks.NET.csproj" />
-		<ProjectReference Include="..\Celeste.Patcher\Celeste.Patcher.csproj" />
+		<ProjectReference Include="../../external/FNA/FNA.Core.csproj" />
+		<ProjectReference Include="../Steamworks.NET/Steamworks.NET.csproj" />
+		<ProjectReference Include="../Celeste.Patcher/Celeste.Patcher.csproj" />
 		<!-- Só para compilar antes; o .dll vai como asset (ver _AddPatcherAssets). -->
-		<ProjectReference Include="..\Celeste.Android.Patches\Celeste.Android.Patches.csproj"
+		<ProjectReference Include="../Celeste.Android.Patches/Celeste.Android.Patches.csproj"
 			ReferenceOutputAssembly="false" OutputItemType="CelestePatchModule" />
 	</ItemGroup>
+
+	<!-- Falha cedo, com mensagem clara, quando falta um arquivo de entrada: os globs abaixo não
+	     reclamam de diretório vazio (o erro só apareceria no aparelho, ou numa APK sem o jogo). -->
+	<Target Name="_CheckInputs" BeforeTargets="BeforeBuild" Condition="'$(DesignTimeBuild)' != 'true'">
+		<Error Condition="!Exists('$(RepoRoot)natives/android-arm64/libSDL3.so') or !Exists('$(RepoRoot)natives/android-arm64/libFNA3D.so') or !Exists('$(RepoRoot)natives/android-arm64/libFAudio.so')"
+			Text="Android native libraries are missing from $(RepoRoot)natives/android-arm64. Build them with scripts/build-natives-android.ps1." />
+		<Error Condition="!Exists('$(RepoRoot)fmod/libs/android-arm64/libfmod.so') or !Exists('$(RepoRoot)fmod/libs/android-arm64/libfmodstudio.so') or !Exists('$(RepoRoot)fmod/libs/android-arm64/fmod.jar')"
+			Text="FMOD for Android is missing from $(RepoRoot)fmod/libs/android-arm64 (see docs/BUILDING.md)." />
+		<Error Condition="'$(EmbedGame)' == 'true' and !Exists('$(CelesteGameDir)Celeste.exe')"
+			Text="-EmbedGame needs Celeste.exe; CelesteGameDir is '$(CelesteGameDir)' (see docs/BUILDING.md)." />
+		<Error Condition="'$(EmbedGame)' == 'true' and !Exists('$(CelesteGameDir)Content')"
+			Text="-EmbedGame needs the Content folder in '$(CelesteGameDir)'." />
+	</Target>
 
 	<!-- O patch roda no aparelho: o MonoMod precisa do módulo de patches e das DLLs que o
 	     Celeste.dll gerado referencia (FNA, Steamworks.NET) como arquivos, não do assembly store. -->

@@ -29,9 +29,8 @@ namespace CelesteAndroid.Desktop
 				return 0;
 			}
 
-			// Mesmo contrato que o app Android vai usar (ver CelesteAndroid.HostConfig).
-			AppContext.SetData("CelesteAndroid.Platform", "Android");
-			AppContext.SetData("CelesteAndroid.PrefPath", Path.Combine(hostDir, "userdata"));
+			// Mesmo contrato que o app Android vai usar (src/Shared/HostConfig.cs).
+			HostConfig.Publish("Android", Path.Combine(hostDir, "userdata"));
 
 			// O FNA procura o Content relativo à pasta-base do app; apontamos para a pasta do jogo.
 			AppContext.SetData("APP_CONTEXT_BASE_DIRECTORY", gameDir + Path.DirectorySeparatorChar);

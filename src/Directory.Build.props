@@ -1,8 +1,9 @@
 <Project>
 	<PropertyGroup>
-		<RepoRoot>$([System.IO.Path]::GetFullPath($(MSBuildThisFileDirectory)..\))</RepoRoot>
+		<!-- Forward slashes: MSBuild aceita as duas formas no Windows, e '\' nao separa pastas no Linux. -->
+		<RepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../'))</RepoRoot>
 		<!-- Cópia do jogo do usuário (build FNA). Nunca vai para o git. -->
-		<CelesteGameDir Condition="'$(CelesteGameDir)' == ''">$(RepoRoot)Celeste\</CelesteGameDir>
+		<CelesteGameDir Condition="'$(CelesteGameDir)' == ''">$(RepoRoot)Celeste/</CelesteGameDir>
 		<LangVersion>latest</LangVersion>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>disable</ImplicitUsings>

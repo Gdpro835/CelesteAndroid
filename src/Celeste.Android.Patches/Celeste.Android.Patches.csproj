@@ -8,12 +8,15 @@
 	</PropertyGroup>
 	<ItemGroup>
 		<PackageReference Include="MonoMod.Patcher" Version="25.0.1" PrivateAssets="all" ExcludeAssets="runtime" />
+		<!-- Contrato com o host: compilado aqui dentro (o MonoMod mescla o tipo no Celeste.dll),
+		     não referenciado, e o mesmo arquivo é compilado no app Android e no host desktop. -->
+		<Compile Include="$(RepoRoot)Shared/HostConfig.cs" Link="Shared/HostConfig.cs" />
 	</ItemGroup>
 	<ItemGroup>
 		<Reference Include="Celeste">
 			<HintPath>$(CelesteGameDir)Celeste.exe</HintPath>
 			<Private>false</Private>
 		</Reference>
-		<ProjectReference Include="..\..\external\FNA\FNA.Core.csproj" Private="false" />
+		<ProjectReference Include="../../external/FNA/FNA.Core.csproj" Private="false" />
 	</ItemGroup>
 </Project>

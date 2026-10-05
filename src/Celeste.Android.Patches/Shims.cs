@@ -4,28 +4,8 @@ using MonoMod;
 
 namespace CelesteAndroid
 {
-	/// <summary>
-	/// Configuração passada pelo host (desktop ou Activity Android) antes do jogo iniciar.
-	/// Usa AppContext para não exigir referência ao Celeste.dll patcheado.
-	/// </summary>
-	public static class HostConfig
-	{
-		public const string PlatformKey = "CelesteAndroid.Platform";
-		public const string PrefPathKey = "CelesteAndroid.PrefPath";
-		public const string BackgroundPathKey = "CelesteAndroid.BackgroundPath";
-		public const string TouchControlsKey = "CelesteAndroid.TouchControls";
-
-		public static string Platform => AppContext.GetData(PlatformKey) as string ?? "Android";
-
-		/// <summary>Imagem para as faixas laterais em telas mais largas que 16:9 (opcional).</summary>
-		public static string? BackgroundPath => AppContext.GetData(BackgroundPathKey) as string;
-
-		/// <summary>Controles na tela (toque). Só ligam se o host mandar "1" (ver TouchControls).</summary>
-		public static bool TouchControlsEnabled => AppContext.GetData(TouchControlsKey) as string == "1";
-
-		public static string PrefPath => AppContext.GetData(PrefPathKey) as string
-			?? throw new InvalidOperationException($"{PrefPathKey} não foi definido pelo host.");
-	}
+	// HostConfig (o contrato com o host) fica em src/Shared/HostConfig.cs: o mesmo arquivo é
+	// compilado no app Android e no host desktop, para as chaves não existirem em dois lugares.
 
 	/// <summary>
 	/// O Celeste chama SDL2 diretamente, mas o FNA atual roda sobre SDL3.
