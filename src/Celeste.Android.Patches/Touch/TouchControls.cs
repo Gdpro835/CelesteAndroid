@@ -13,21 +13,31 @@ namespace CelesteAndroid.Touch
 	/// (see <see cref="SdlInput"/>).
 	///
 	/// It is drawn over the game image from the render path in Monocle/patch_Engine.cs and fades
-	/// out after a few seconds without touches, so a real controller still gets a clean screen.
+	/// out after a few seconds without touches, so a real controller still gets a clean screen —
+	/// except the pause button, which stays visible: someone playing with the touch pad alone has
+	/// no other way to open the menu. Positions and sizes come from <see cref="TouchLayoutSpec"/>
+	/// (the launcher has an editor for them).
 	/// </summary>
 	internal sealed class TouchControls
 	{
-		#region Layout (fractions of the game viewport height)
-
-		private const float StickRadiusRatio = 0.150f;
-		private const float KnobRadiusRatio = 0.062f;
-		private const float ButtonRadiusRatio = 0.082f;
-		private const float PauseRadiusRatio = 0.050f;
+		#region Layout constants
 
 		/// <summary>How far the stick has to move to press a direction, and to release it again
 		/// (the gap keeps a finger resting on the threshold from flickering).</summary>
 		private const float DirectionOn = 0.50f;
 		private const float DirectionOff = 0.30f;
+
+		/// <summary>Knob radius, as a fraction of the stick radius.</summary>
+		private const float KnobRatio = 0.41f;
+
+		/// <summary>The stick floats inside this box around its place on screen (radio do manche).</summary>
+		private const float StickZoneRatio = 2.6f;
+
+		/// <summary>Extra reach of a button hit test, as a fraction of its radius.</summary>
+		private const float ButtonReach = 1.15f;
+
+		/// <summary>Alpha da pausa quando o resto do pad já apagou.</summary>
+		private const float PauseIdleAlpha = 0.35f;
 
 		private const float HoldSeconds = 6f;
 		private const float FadeSeconds = 0.8f;
@@ -36,14 +46,18 @@ namespace CelesteAndroid.Touch
 
 		private const int MaxFingers = 10;
 
+		/// <summary>
+		/// Valores iguais aos de <see cref="TouchControl"/> (o layout é indexado por eles);
+		/// <see cref="None"/> é o "nenhum controle".
+		/// </summary>
 		private enum Control
 		{
-			None,
-			Stick,
-			Jump,   // C
-			Dash,   // X
-			Grab,   // Z
-			Pause,  // Escape
+			None = -1,
+			Stick = (int)TouchControl.Stick,
+			Jump = (int)TouchControl.Jump,
+			Dash = (int)TouchControl.Dash,
+			Grab = (int)TouchControl.Grab,
+			Pause = (int)TouchControl.Pause,
 		}
 
 		private static readonly GameKey[] AllKeys =
@@ -64,6 +78,9 @@ namespace CelesteAndroid.Touch
 		private Vector2 stick;
 		private long lastTouchMs = Environment.TickCount64;
 
+		private string? layoutText;
+		private TouchLayoutSpec layout = TouchLayoutSpec.Default;
+
 		private GraphicsDevice? device;
 		private SpriteBatch? batch;
 		private Texture2D? circle;
@@ -81,12 +98,16 @@ namespace CelesteAndroid.Touch
 				return;
 			}
 
-			PadLayout layout = new(
+			// O editor do launcher muda a posição dos controles: relê quando o host publica outro layout.
+			RefreshLayout();
+
+			PadLayout pad = new(
 				viewport,
 				graphicsDevice.PresentationParameters.BackBufferWidth,
-				graphicsDevice.PresentationParameters.BackBufferHeight
+				graphicsDevice.PresentationParameters.BackBufferHeight,
+				layout
 			);
-			if (layout.Height <= 0f || layout.BackWidth <= 0f || layout.BackHeight <= 0f)
+			if (pad.Height <= 0f || pad.BackWidth <= 0f || pad.BackHeight <= 0f)
 			{
 				return;
 			}
@@ -97,31 +118,46 @@ namespace CelesteAndroid.Touch
 			long now = Environment.TickCount64;
 
 			// The pad fades out when nobody touches the screen (playing with a controller).
-			// In that case the touch that brings it back doesn't press anything: a brush against
-			// the screen shouldn't dash. Holding the finger down presses normally from the next
-			// frame on, because the pad is already back.
 			float alpha = MathHelper.Clamp(
 				1f - ((now - lastTouchMs) / 1000f - HoldSeconds) / FadeSeconds,
 				0f, 1f
 			);
-			bool wasHidden = alpha <= 0f && fingerCount > 0;
+			bool wake = alpha <= 0f && fingerCount > 0;
 			if (fingerCount > 0)
 			{
 				lastTouchMs = now;
 			}
-			if (wasHidden)
+
+			if (wake)
 			{
+				// The touch that brings the pad back doesn't press anything: a brush against the
+				// screen shouldn't dash. The pause button is the exception — it has to work on the
+				// first try, otherwise a stick-less player can't open the menu.
 				grabCount = 0;
 				ReleaseAllKeys();
-				Draw(graphicsDevice, layout, 1f);
+				Assign(fingerCount, pad, pauseOnly: true);
+				UpdateButtons();
+				Draw(graphicsDevice, pad, 1f);
 				return;
 			}
 
-			Assign(fingerCount, layout);
-			UpdateStick(layout);
+			Assign(fingerCount, pad, pauseOnly: false);
+			UpdateStick(pad);
 			UpdateButtons();
 
-			Draw(graphicsDevice, layout, alpha);
+			Draw(graphicsDevice, pad, alpha);
+		}
+
+		private void RefreshLayout()
+		{
+			string? text = HostConfig.TouchLayoutSetting;
+			if (text == layoutText)
+			{
+				return;
+			}
+			layoutText = text;
+			// Texto ausente/estragado cai no layout de fábrica, nunca deixa o pad sem controles.
+			layout = TouchLayoutSpec.TryParse(text, out TouchLayoutSpec parsed) ? parsed : TouchLayoutSpec.Default;
 		}
 
 		private void ReleaseAllKeys()
@@ -136,7 +172,7 @@ namespace CelesteAndroid.Touch
 			}
 		}
 
-		private void Assign(int fingerCount, PadLayout layout)
+		private void Assign(int fingerCount, PadLayout layout, bool pauseOnly)
 		{
 			// Fingers that are still down keep the control they grabbed.
 			int kept = 0;
@@ -162,11 +198,16 @@ namespace CelesteAndroid.Touch
 				{
 					continue;
 				}
+				if (pauseOnly && target != Control.Pause)
+				{
+					// Só a pausa funciona no toque que acorda o pad.
+					continue;
+				}
 				grabs[grabCount++] = new Grab(id, target);
 				if (target == Control.Stick)
 				{
-					// The stick floats: its centre is wherever the finger landed.
-					stickOrigin = point;
+					// The stick floats: its centre is wherever the finger landed (inside the game image).
+					stickOrigin = layout.ClampToGame(point);
 				}
 			}
 		}
@@ -175,20 +216,25 @@ namespace CelesteAndroid.Touch
 		{
 			stick = Vector2.Zero;
 			int grab = FindControl(Control.Stick);
-			if (grab >= 0)
+			if (grab < 0)
+			{
+				// Sem dedo no manche: desenha no lugar configurado (não em 0,0).
+				stickOrigin = layout.Center(TouchControl.Stick);
+			}
+			else
 			{
 				int finger = FindFinger(grabs[grab].FingerId);
 				if (finger >= 0)
 				{
 					Vector2 delta = ToPixels(fingers[finger], layout) - stickOrigin;
 					float length = delta.Length();
-					float max = layout.StickRadius;
+					float max = layout.Radius(TouchControl.Stick);
 					stick = length > max && length > 0f ? delta * (max / length) : delta;
 				}
 			}
 
-			float on = layout.StickRadius * DirectionOn;
-			float off = layout.StickRadius * DirectionOff;
+			float on = layout.Radius(TouchControl.Stick) * DirectionOn;
+			float off = layout.Radius(TouchControl.Stick) * DirectionOff;
 			SetDirection(0, GameKey.Left, -stick.X, on, off);
 			SetDirection(1, GameKey.Right, stick.X, on, off);
 			SetDirection(2, GameKey.Up, -stick.Y, on, off);
@@ -302,7 +348,9 @@ namespace CelesteAndroid.Touch
 
 		private void Draw(GraphicsDevice graphicsDevice, PadLayout layout, float alpha)
 		{
-			if (alpha <= 0f || batch == null || circle == null || pixel == null)
+			// A pausa continua no ecrã (mais apagada) quando o resto do pad já se escondeu.
+			float pauseAlpha = MathF.Max(alpha, PauseIdleAlpha);
+			if (pauseAlpha <= 0f || batch == null || circle == null || pixel == null)
 			{
 				return;
 			}
@@ -313,28 +361,34 @@ namespace CelesteAndroid.Touch
 			graphicsDevice.Viewport = new Viewport(0, 0, (int)layout.BackWidth, (int)layout.BackHeight);
 			try
 			{
-				SpriteBatch spriteBatch = batch;
-				Texture2D pixelTexture = pixel;
+				SpriteBatch spriteBatch = batch!;
+				Texture2D pixelTexture = pixel!;
 				spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, null, null);
 
-				// Stick: a ring with a knob that follows the finger.
-				bool stickActive = FindControl(Control.Stick) >= 0;
-				DrawCircle(spriteBatch, stickOrigin, layout.StickRadius, Premul(255, 255, 255, (stickActive ? 0.26f : 0.16f) * alpha));
-				DrawCircle(spriteBatch, stickOrigin, layout.StickRadius * 0.86f, Premul(18, 12, 34, (stickActive ? 0.34f : 0.22f) * alpha));
-				DrawCircle(spriteBatch, stickOrigin + stick, layout.KnobRadius, Premul(255, 255, 255, (stickActive ? 0.55f : 0.30f) * alpha));
+				if (alpha > 0f)
+				{
+					// Stick: a ring with a knob that follows the finger.
+					bool stickActive = FindControl(Control.Stick) >= 0;
+					float stickRadius = layout.Radius(TouchControl.Stick);
+					DrawCircle(spriteBatch, stickOrigin, stickRadius, Premul(255, 255, 255, (stickActive ? 0.26f : 0.16f) * alpha));
+					DrawCircle(spriteBatch, stickOrigin, stickRadius * 0.86f, Premul(18, 12, 34, (stickActive ? 0.34f : 0.22f) * alpha));
+					DrawCircle(spriteBatch, stickOrigin + stick, stickRadius * KnobRatio, Premul(255, 255, 255, (stickActive ? 0.55f : 0.30f) * alpha));
 
-				DrawButton(spriteBatch, layout.Jump, layout.ButtonRadius, GlyphC, FindControl(Control.Jump) >= 0, alpha);
-				DrawButton(spriteBatch, layout.Dash, layout.ButtonRadius, GlyphX, FindControl(Control.Dash) >= 0, alpha);
-				DrawButton(spriteBatch, layout.Grab, layout.ButtonRadius, GlyphZ, FindControl(Control.Grab) >= 0, alpha);
+					DrawButton(spriteBatch, layout, TouchControl.Jump, GlyphC, alpha);
+					DrawButton(spriteBatch, layout, TouchControl.Dash, GlyphX, alpha);
+					DrawButton(spriteBatch, layout, TouchControl.Grab, GlyphZ, alpha);
+				}
 
-				// Pause: small, out of the way, in the top right corner of the game image.
+				// Pausa: pequena, no canto, e sempre visível (ver PauseIdleAlpha).
+				Vector2 pause = layout.Center(TouchControl.Pause);
+				float pauseRadius = layout.Radius(TouchControl.Pause);
 				bool paused = FindControl(Control.Pause) >= 0;
-				DrawCircle(spriteBatch, layout.Pause, layout.PauseRadius, Premul(255, 255, 255, (paused ? 0.9f : 0.5f) * alpha));
-				DrawCircle(spriteBatch, layout.Pause, layout.PauseRadius * 0.84f, Premul(18, 12, 34, (paused ? 0.5f : 0.35f) * alpha));
-				float bar = layout.PauseRadius * 0.20f;
-				Color ink = Premul(255, 255, 255, (paused ? 0.95f : 0.85f) * alpha);
-				spriteBatch.Draw(pixelTexture, new Rectangle((int)(layout.Pause.X - bar * 1.7f), (int)(layout.Pause.Y - bar * 1.8f), (int)bar, (int)(bar * 3.6f)), ink);
-				spriteBatch.Draw(pixelTexture, new Rectangle((int)(layout.Pause.X + bar * 0.7f), (int)(layout.Pause.Y - bar * 1.8f), (int)bar, (int)(bar * 3.6f)), ink);
+				DrawCircle(spriteBatch, pause, pauseRadius, Premul(255, 255, 255, (paused ? 0.9f : 0.5f) * pauseAlpha));
+				DrawCircle(spriteBatch, pause, pauseRadius * 0.84f, Premul(18, 12, 34, (paused ? 0.5f : 0.35f) * pauseAlpha));
+				float bar = pauseRadius * 0.20f;
+				Color ink = Premul(255, 255, 255, (paused ? 0.95f : 0.85f) * pauseAlpha);
+				spriteBatch.Draw(pixelTexture, new Rectangle((int)(pause.X - bar * 1.7f), (int)(pause.Y - bar * 1.8f), (int)bar, (int)(bar * 3.6f)), ink);
+				spriteBatch.Draw(pixelTexture, new Rectangle((int)(pause.X + bar * 0.7f), (int)(pause.Y - bar * 1.8f), (int)bar, (int)(bar * 3.6f)), ink);
 
 				spriteBatch.End();
 			}
@@ -344,8 +398,11 @@ namespace CelesteAndroid.Touch
 			}
 		}
 
-		private void DrawButton(SpriteBatch spriteBatch, Vector2 center, float radius, uint[] glyph, bool pressed, float alpha)
+		private void DrawButton(SpriteBatch spriteBatch, PadLayout layout, TouchControl control, uint[] glyph, float alpha)
 		{
+			Vector2 center = layout.Center(control);
+			float radius = layout.Radius(control);
+			bool pressed = FindControl((Control)(int)control) >= 0;
 			Color ring = pressed ? Premul(242, 184, 216, 0.95f * alpha) : Premul(255, 255, 255, 0.45f * alpha);
 			Color fill = pressed ? Premul(242, 184, 216, 0.42f * alpha) : Premul(18, 12, 34, 0.42f * alpha);
 			Color ink = pressed ? Premul(18, 12, 34, 0.95f * alpha) : Premul(255, 255, 255, 0.88f * alpha);
@@ -432,59 +489,76 @@ namespace CelesteAndroid.Touch
 			public readonly float BackWidth;
 			public readonly float BackHeight;
 			public readonly float Height;
-			public readonly float StickRadius;
-			public readonly float KnobRadius;
-			public readonly float ButtonRadius;
-			public readonly float PauseRadius;
-			public readonly Vector2 StickHome;
-			public readonly Vector2 Jump;
-			public readonly Vector2 Dash;
-			public readonly Vector2 Grab;
-			public readonly Vector2 Pause;
 
-			private readonly float viewportLeft;
-			private readonly float viewportWidth;
+			private readonly float[] centersX;
+			private readonly float[] centersY;
+			private readonly float[] radii;
+			private readonly float left;
+			private readonly float top;
+			private readonly float right;
+			private readonly float bottom;
 
-			public PadLayout(Viewport viewport, int backBufferWidth, int backBufferHeight)
+			public PadLayout(Viewport viewport, int backBufferWidth, int backBufferHeight, TouchLayoutSpec spec)
 			{
 				BackWidth = backBufferWidth;
 				BackHeight = backBufferHeight;
 				Height = viewport.Height;
+				left = viewport.X;
+				top = viewport.Y;
+				right = viewport.X + viewport.Width;
+				bottom = viewport.Y + viewport.Height;
 
-				StickRadius = StickRadiusRatio * viewport.Height;
-				KnobRadius = KnobRadiusRatio * viewport.Height;
-				ButtonRadius = ButtonRadiusRatio * viewport.Height;
-				PauseRadius = PauseRadiusRatio * viewport.Height;
+				int count = TouchLayoutSpec.Count;
+				centersX = new float[count];
+				centersY = new float[count];
+				radii = new float[count];
+				for (int i = 0; i < count; i++)
+				{
+					TouchControlSpec control = spec[i];
+					centersX[i] = left + control.X * viewport.Width;
+					centersY[i] = top + control.Y * viewport.Height;
+					radii[i] = control.Size * viewport.Height * spec.Scale;
+				}
+			}
 
-				float left = viewport.X;
-				float top = viewport.Y;
-				float right = viewport.X + viewport.Width;
-				float bottom = viewport.Y + viewport.Height;
-				viewportLeft = left;
-				viewportWidth = viewport.Width;
+			public Vector2 Center(TouchControl control) => new(centersX[(int)control], centersY[(int)control]);
 
-				StickHome = new Vector2(left + StickRadius * 1.45f, bottom - StickRadius * 1.45f);
-				Jump = new Vector2(right - ButtonRadius * 1.35f, bottom - ButtonRadius * 1.35f);
-				Dash = new Vector2(right - ButtonRadius * 3.85f, bottom - ButtonRadius * 1.35f);
-				Grab = new Vector2(right - ButtonRadius * 1.35f, bottom - ButtonRadius * 3.85f);
-				Pause = new Vector2(right - PauseRadius * 1.7f, top + PauseRadius * 1.7f);
+			public float Radius(TouchControl control) => radii[(int)control];
+
+			/// <summary>Trava um ponto de toque dentro da imagem do jogo (o manche flutua até aí).</summary>
+			public Vector2 ClampToGame(Vector2 point)
+			{
+				float margin = MathF.Max(1f, Radius(TouchControl.Stick));
+				return new Vector2(
+					MathHelper.Clamp(point.X, left + margin, right - margin),
+					MathHelper.Clamp(point.Y, top + margin, bottom - margin)
+				);
 			}
 
 			public Control HitTest(Vector2 point, bool stickTaken)
 			{
-				float reach = ButtonRadius * 1.15f;
-				if (Vector2.DistanceSquared(point, Jump) <= reach * reach) return Control.Jump;
-				if (Vector2.DistanceSquared(point, Dash) <= reach * reach) return Control.Dash;
-				if (Vector2.DistanceSquared(point, Grab) <= reach * reach) return Control.Grab;
-				float pauseReach = PauseRadius * 1.3f;
-				if (Vector2.DistanceSquared(point, Pause) <= pauseReach * pauseReach) return Control.Pause;
+				if (Hits(point, TouchControl.Pause)) return Control.Pause;
+				if (Hits(point, TouchControl.Jump)) return Control.Jump;
+				if (Hits(point, TouchControl.Dash)) return Control.Dash;
+				if (Hits(point, TouchControl.Grab)) return Control.Grab;
 
-				// The stick owns the left half of the game image, wherever the finger lands.
-				if (!stickTaken && point.X < viewportLeft + viewportWidth * 0.5f)
+				// O manche agarra dentro de uma caixa em volta do lugar configurado e flutua a partir daí.
+				if (!stickTaken)
 				{
-					return Control.Stick;
+					float zone = Radius(TouchControl.Stick) * StickZoneRatio;
+					Vector2 home = Center(TouchControl.Stick);
+					if (MathF.Abs(point.X - home.X) <= zone && MathF.Abs(point.Y - home.Y) <= zone)
+					{
+						return Control.Stick;
+					}
 				}
 				return Control.None;
+			}
+
+			private bool Hits(Vector2 point, TouchControl control)
+			{
+				float reach = Radius(control) * ButtonReach;
+				return Vector2.DistanceSquared(point, Center(control)) <= reach * reach;
 			}
 		}
 

@@ -18,6 +18,9 @@ namespace CelesteAndroid
 		/// <summary>Controles na tela ("1"/"0"). Ligados por padrão.</summary>
 		public const string TouchKey = "touch";
 
+		/// <summary>Posição dos controles (ver TouchLayoutSpec.Encode); vazio = padrão.</summary>
+		public const string TouchLayoutKey = "touch_layout";
+
 		private static ISharedPreferences Get(Context context) =>
 			context.GetSharedPreferences(FileName, FileCreationMode.Private)!;
 
@@ -32,5 +35,10 @@ namespace CelesteAndroid
 
 		public static void SetTouchControls(Context context, bool enabled) =>
 			Get(context).Edit()!.PutString(TouchKey, enabled ? "1" : "0")!.Apply();
+
+		public static string TouchLayout(Context context) => Get(context).GetString(TouchLayoutKey, "") ?? "";
+
+		public static void SetTouchLayout(Context context, string layout) =>
+			Get(context).Edit()!.PutString(TouchLayoutKey, layout)!.Apply();
 	}
 }

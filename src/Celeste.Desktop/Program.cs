@@ -29,7 +29,8 @@ namespace CelesteAndroid.Desktop
 				return 0;
 			}
 
-			// Mesmo contrato que o app Android vai usar (src/Shared/HostConfig.cs).
+			// Mesmo contrato que o app Android vai usar (src/Shared/HostConfig.cs). Sem controles na
+			// tela (touchControls fica no padrão falso): o host é para testar patches no Windows.
 			HostConfig.Publish("Android", Path.Combine(hostDir, "userdata"));
 
 			// O FNA procura o Content relativo à pasta-base do app; apontamos para a pasta do jogo.

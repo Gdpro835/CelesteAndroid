@@ -19,7 +19,13 @@ namespace CelesteAndroid
 
 			// Ver CelesteAndroid.HostConfig (compilado de src/Shared/HostConfig.cs).
 			bool touch = LauncherPrefs.TouchControls(context);
-			HostConfig.Publish("Android", GameInstaller.UserDir(context), GameInstaller.BackgroundPng(context), touch);
+			HostConfig.Publish(
+				"Android",
+				GameInstaller.UserDir(context),
+				GameInstaller.BackgroundPng(context),
+				touch,
+				LauncherPrefs.TouchLayout(context)
+			);
 			Log.Info(GameActivity.LogTag, $"Controles de toque: {(touch ? "ligados" : "desligados")}");
 
 			// O FNA resolve o Content relativo ao diretório de trabalho no Android.

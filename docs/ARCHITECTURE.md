@@ -17,8 +17,9 @@ Celeste is a C# game built on **FNA** (an XNA 4 reimplementation). `Celeste.exe`
 src/
   Shared/HostConfig.cs       the host↔game contract, compiled into each host (see below)
   Celeste.Android/           .NET for Android app (launcher + game activity)
-    LauncherActivity.cs      UI: key art, PLAY, import folder/.zip/saves, graphics + touch toggles
-    LauncherPrefs.cs         shared preferences (graphics driver, touch controls)
+    LauncherActivity.cs      UI: key art, PLAY, import folder/.zip/saves, graphics + touch toggles, layout editor
+    LauncherPrefs.cs         shared preferences (graphics driver, touch controls and their layout)
+    TouchLayoutEditor.cs     drag-and-drop editor for the on-screen control positions
     GameInstaller.cs         import (SAF folder, .zip, embedded assets) → MonoMod patch → blurred background
     GameActivity.cs          SDLActivity subclass, process ":game"; runs the game on the SDL thread
     CelesteLauncher.cs       loads the patched Celeste.dll and invokes Celeste.Main via reflection
@@ -75,9 +76,11 @@ Celeste is a controller/keyboard game, so a phone without a controller needs art
 
 **Drawing it.** The pad lives in the same `Engine.RenderCore` patch as the pillarbox: after `scene.Render()` it sets the device viewport to the whole backbuffer and draws inside the game image's rectangle (the controls stay over the game, not over the bars). Textures are generated at runtime — one soft-edged circle, tinted per control, plus a 5×5 bitmap font for the letters — and are recreated when `GraphicsDevice` is replaced (Android recreates the window on resume). The stick is a ring that floats: its centre is wherever the finger landed inside the left half of the game image, and the knob follows clamped to the ring. Z sits above C, X next to it, and a small pause button in the top-right corner; pause matters because a touch-only player has no other way to open the menu.
 
-The pad fades out after ~6 s without touches (a controller player shouldn't have buttons in the way) and the touch that brings it back presses nothing: a brush against the screen doesn't dash. Holding the finger down works from the next frame on.
+The pad fades out after ~6 s without touches (a controller player shouldn't have buttons in the way) and the touch that brings it back presses nothing: a brush against the screen doesn't dash. Holding the finger down works from the next frame on. The pause button is the exception twice over: it stays visible on purpose (0.35 alpha) so a touch-only player always has a way to open the menu, and it answers on the first touch instead of waiting for the pad to wake.
 
-It can be turned off (or back on) in the launcher: `LauncherPrefs` → `CelesteLauncher` → `HostConfig.Publish(..., touchControls)` → `HostConfig.TouchControlsEnabled`. A host that doesn't ask for them (the desktop one) gets no on-screen controls.
+Positions and sizes live in `TouchLayoutSpec` (in `src/Shared/HostConfig.cs`, compiled into both the app and the patch module): normalised to the 16:9 game image, so the same numbers work on any screen. The launcher's **Layout** link opens `TouchLayoutEditor`, a drag-and-drop preview that stores the result in SharedPreferences and publishes it through `AppContext`; `TouchControls` re-reads it when it changes and falls back to the factory layout (`TouchLayoutSpec.Default`) if the text is missing or garbled.
+
+It can be turned off (or back on) in the launcher: `LauncherPrefs` → `CelesteLauncher` → `HostConfig.Publish(..., touchControls, touchLayout)` → `HostConfig.TouchControlsEnabled` / `HostConfig.TouchLayoutSetting`. A host that doesn't ask for them (the desktop one) gets no on-screen controls.
 
 Costs and limits: injecting during the draw phase means FNA picks the key up at the start of the next tick, so there is about one frame of latency (the same as any key press in the game). The pad has no way to type text or use the journal (Tab); those are not needed to play.
 

@@ -46,6 +46,10 @@ namespace CelesteAndroid
 		private TextView openZip = null!;
 		private TextView importSaves = null!;
 		private TextView driverToggle = null!;
+		private TextView touchToggle = null!;
+		private TextView layoutLink = null!;
+		private FrameLayout root = null!;
+		private View? touchOverlay;
 		private LinearLayout links = null!;
 		private LinearLayout progressBox = null!;
 		private ProgressBar progressBar = null!;
@@ -110,7 +114,7 @@ namespace CelesteAndroid
 
 		private View BuildLayout()
 		{
-			var root = new FrameLayout(this);
+			root = new FrameLayout(this);
 			root.SetBackgroundColor(Night);
 
 			art = new ImageView(this);
@@ -174,6 +178,8 @@ namespace CelesteAndroid
 			driverToggle.Click += (_, _) => ToggleDriver();
 			touchToggle = LinkText("");
 			touchToggle.Click += (_, _) => ToggleTouch();
+			layoutLink = LinkText("Layout");
+			layoutLink.Click += (_, _) => OpenTouchLayout();
 			links.AddView(openZip);
 			links.AddView(Text("·", 14, Color.Argb(120, 255, 255, 255), TypefaceStyle.Normal), Margins(left: 10, right: 10));
 			links.AddView(importSaves);
@@ -181,6 +187,8 @@ namespace CelesteAndroid
 			links.AddView(driverToggle);
 			links.AddView(Text("·", 14, Color.Argb(120, 255, 255, 255), TypefaceStyle.Normal), Margins(left: 10, right: 10));
 			links.AddView(touchToggle);
+			links.AddView(Text("·", 14, Color.Argb(120, 255, 255, 255), TypefaceStyle.Normal), Margins(left: 10, right: 10));
+			links.AddView(layoutLink);
 			panel.AddView(links, Margins(top: 6, left: 6));
 
 			progressBox = new LinearLayout(this) { Orientation = Orientation.Vertical, Visibility = ViewStates.Gone };
@@ -326,6 +334,100 @@ namespace CelesteAndroid
 		{
 			LauncherPrefs.SetTouchControls(this, !LauncherPrefs.TouchControls(this));
 			RefreshState();
+		}
+
+		/// <summary>
+		/// Editor das posições dos controles de toque ("Layout"): mostra a área do jogo e deixa
+		/// arrastar cada controle; o resultado vai para as preferências e o jogo lê pelo AppContext.
+		/// </summary>
+		private void OpenTouchLayout()
+		{
+			if (touchOverlay != null)
+			{
+				return;
+			}
+			TouchLayoutSpec initial = TouchLayoutSpec.TryParse(LauncherPrefs.TouchLayout(this), out TouchLayoutSpec parsed)
+				? parsed
+				: TouchLayoutSpec.Default;
+
+			var editor = new TouchLayoutEditor(this, initial);
+			var overlay = new LinearLayout(this) { Orientation = Orientation.Vertical };
+			overlay.SetBackgroundColor(Color.Argb(247, 18, 12, 34));
+			overlay.SetPadding(Dp(18), Dp(20), Dp(18), Dp(20));
+
+			overlay.AddView(Text("Touch layout", 22, Color.White, TypefaceStyle.Bold));
+			overlay.AddView(
+				Text("Drag each control where you want it. Pause stays visible even when the pad fades.",
+					13, Color.Argb(190, 255, 255, 255), TypefaceStyle.Normal),
+				Margins(top: 6)
+			);
+			overlay.AddView(editor, new LinearLayout.LayoutParams(
+				ViewGroup.LayoutParams.MatchParent, 0, 1f) { TopMargin = Dp(14), BottomMargin = Dp(10) });
+
+			var sizeLabel = Text("", 14, Color.Argb(225, 255, 255, 255), TypefaceStyle.Normal);
+			void ShowSize() => sizeLabel.Text = $"Size: {(int)Math.Round(editor.Scale * 100)}%";
+			ShowSize();
+
+			var sizeRow = new LinearLayout(this) { Orientation = Orientation.Horizontal };
+			var smaller = PillButton("A-", filled: false);
+			smaller.Click += (_, _) =>
+			{
+				editor.Scale -= 0.05f;
+				ShowSize();
+			};
+			var bigger = PillButton("A+", filled: false);
+			bigger.Click += (_, _) =>
+			{
+				editor.Scale += 0.05f;
+				ShowSize();
+			};
+			sizeRow.AddView(smaller, new LinearLayout.LayoutParams(Dp(64), Dp(42)));
+			sizeRow.AddView(sizeLabel, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent, 1f)
+			{
+				LeftMargin = Dp(12),
+				TopMargin = Dp(10),
+			});
+			sizeRow.AddView(bigger, new LinearLayout.LayoutParams(Dp(64), Dp(42)));
+			overlay.AddView(sizeRow);
+
+			var actions = new LinearLayout(this) { Orientation = Orientation.Horizontal };
+			var reset = LinkText("Reset");
+			reset.Click += (_, _) =>
+			{
+				editor.Reset();
+				ShowSize();
+			};
+			var mirror = LinkText("Left-handed");
+			mirror.Click += (_, _) => editor.Mirror();
+			var cancel = LinkText("Cancel");
+			cancel.Click += (_, _) => CloseTouchLayout();
+			actions.AddView(reset);
+			actions.AddView(Text("·", 14, Color.Argb(120, 255, 255, 255), TypefaceStyle.Normal), Margins(left: 10, right: 10));
+			actions.AddView(mirror);
+			actions.AddView(Text("·", 14, Color.Argb(120, 255, 255, 255), TypefaceStyle.Normal), Margins(left: 10, right: 10));
+			actions.AddView(cancel);
+			actions.AddView(Text("·", 14, Color.Argb(120, 255, 255, 255), TypefaceStyle.Normal), Margins(left: 10, right: 10));
+			var done = LinkText("Save");
+			done.Click += (_, _) =>
+			{
+				LauncherPrefs.SetTouchLayout(this, editor.Layout.Encode());
+				CloseTouchLayout();
+			};
+			actions.AddView(done);
+			overlay.AddView(actions, Margins(top: 12));
+
+			touchOverlay = overlay;
+			root.AddView(overlay, Match());
+			// O jogo lê o layout ao iniciar: salvar aqui já vale para a próxima partida.
+		}
+
+		private void CloseTouchLayout()
+		{
+			if (touchOverlay != null)
+			{
+				root.RemoveView(touchOverlay);
+				touchOverlay = null;
+			}
 		}
 
 		private void PickFolder()
