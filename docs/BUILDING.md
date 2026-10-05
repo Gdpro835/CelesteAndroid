@@ -90,3 +90,9 @@ adb shell am start -n org.celesteandroid.celeste/.LauncherActivity --ez repatch 
 ```
 
 To force OpenGL ES: `--es driver OpenGL` on `GameActivity`, or the *Graphics* toggle in the launcher.
+
+## 8. CI (GitHub Actions)
+
+`docs/ci/build-apk.yml` is the release workflow as a template, plus a README with the secret list.
+Move it to `.github/workflows/build-apk.yml` to enable it (see `docs/ci/README.md`); it builds the
+same APKs with the same scripts, either on demand or from a `v*` tag.

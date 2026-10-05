@@ -1,0 +1,359 @@
+# Builds the release APKs with the same scripts you run locally (scripts/build-release.ps1).
+#
+# The runner is windows-latest on purpose: scripts/generate-game-art.ps1 uses System.Drawing and
+# scripts/build-natives-android.ps1 looks for the Windows NDK toolchain (llvm-strip.exe).
+#
+# The repository can't ship the files below, so they come from repository secrets
+# (Settings > Secrets and variables > Actions):
+#
+#   CELESTE_GAME_URL      required. .zip/.tar.gz (or a direct link) with Celeste.exe, the FNA
+#                         build: the patch module compiles against it. Include Content/ as well
+#                         if you want the personal variants.
+#   FMOD_ANDROID_URL      required. Archive with libfmod.so, libfmodstudio.so and fmod.jar from
+#                         the FMOD Engine 1.10.14 Android package.
+#   NATIVES_ANDROID_URL   optional. Archive with libSDL3.so, libFNA3D.so and libFAudio.so already
+#                         built for arm64 (the output of scripts/build-natives-android.ps1).
+#                         Without it the workflow installs NDK r27d and builds them (~10 min).
+#   ASSETS_TOKEN          optional. Bearer token for the three downloads above, for assets that
+#                         need authentication (private release assets, S3...). A signed URL that
+#                         already carries its token needs nothing.
+#   CELESTE_KEYSTORE_B64  optional. base64 of the release keystore, plus CELESTE_KEYSTORE_ALIAS
+#                         and CELESTE_KEYSTORE_PASS. Without them the APK is signed with the
+#                         debug key: fine for testing, but it can't update an installed release
+#                         build (and uninstalling deletes the saves).
+#   ARTIFACT_PASS         optional. Password used to publish a personal APK as an encrypted
+#                         artifact. Without it personal APKs are not uploaded at all: artifacts
+#                         of a public repository are public, and those APKs contain official art
+#                         (plus the whole game, with personal-embedded). Note that
+#                         personal-embedded is ~860 MB, which counts against the Actions storage
+#                         quota - build that variant locally unless you need it here.
+#
+# How to produce each file locally: docs/BUILDING.md, sections 3 (files), 4 (natives) and 5 (APK).
+#
+# The workflow only ever *publishes* the public APK (tag releases). For a compile check on pull
+# requests, add a `pull_request` trigger; note that secrets aren't available to PRs from forks,
+# so the import steps would fail there.
+name: Build APK
+
+on:
+  # Manual run: choose the variant. "public" carries no official art and is safe to share.
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: Which APK to build
+        type: choice
+        options:
+          - public
+          - personal
+          - personal-embedded
+        default: public
+  # Pushing a v* tag builds the public APK and attaches it to a GitHub Release.
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write # gh release create/upload on tags
+
+jobs:
+  apk:
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    env:
+      VARIANT: ${{ github.event_name == 'workflow_dispatch' && inputs.variant || 'public' }}
+      CELESTE_GAME_URL: ${{ secrets.CELESTE_GAME_URL }}
+      FMOD_ANDROID_URL: ${{ secrets.FMOD_ANDROID_URL }}
+      NATIVES_ANDROID_URL: ${{ secrets.NATIVES_ANDROID_URL }}
+      ASSETS_TOKEN: ${{ secrets.ASSETS_TOKEN }}
+      CELESTE_KEYSTORE_B64: ${{ secrets.CELESTE_KEYSTORE_B64 }}
+      CELESTE_KEYSTORE_ALIAS: ${{ secrets.CELESTE_KEYSTORE_ALIAS }}
+      CELESTE_KEYSTORE_PASS: ${{ secrets.CELESTE_KEYSTORE_PASS }}
+      ARTIFACT_PASS: ${{ secrets.ARTIFACT_PASS }}
+
+    steps:
+      - name: Checkout (FNA and SDL are submodules, FNA has its own)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: .NET SDK 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          cache: true
+          cache-dependency-path: '**/*.csproj'
+
+      - name: Android workload
+        shell: pwsh
+        run: dotnet workload install android
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK (platform 36 + build-tools 36, licenses accepted)
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      # build-release.ps1 reads ANDROID_HOME (and warns about the NDK); make sure both names point
+      # at the SDK the action just set up, wherever the runner image put it.
+      - name: Android SDK environment
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sdk = $env:ANDROID_HOME
+          if (-not $sdk) { $sdk = $env:ANDROID_SDK_ROOT }
+          if (-not $sdk) { throw 'Neither ANDROID_HOME nor ANDROID_SDK_ROOT is set after the SDK setup.' }
+          Add-Content $env:GITHUB_ENV "ANDROID_HOME=$sdk"
+          Add-Content $env:GITHUB_ENV "ANDROID_SDK_ROOT=$sdk"
+          if (-not (Test-Path (Join-Path $sdk 'platforms/android-36'))) {
+            Write-Warning "platforms/android-36 is missing from $sdk."
+          }
+
+      # Everything proprietary enters the build here: the game (only Celeste.exe is required, the
+      # patch module compiles against it), FMOD and, when you have them, the prebuilt natives.
+      - name: Files that aren't in the repository
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $missing = @()
+          if (-not $env:CELESTE_GAME_URL) { $missing += 'CELESTE_GAME_URL' }
+          if (-not $env:FMOD_ANDROID_URL) { $missing += 'FMOD_ANDROID_URL' }
+          if ($missing.Count -gt 0) {
+            throw "Repository secrets not set: $($missing -join ', '). See the header of this workflow and docs/BUILDING.md."
+          }
+
+          # Downloads a secret URL and unpacks it (zip/gzip/xz/bzip2 are detected by content, so
+          # the URL doesn't need a nice file name). Returns the folder with the extracted files.
+          function Get-Asset {
+            param([string]$Name, [string]$Url, [string]$Dest)
+            New-Item -ItemType Directory -Force $Dest | Out-Null
+            $leaf = [IO.Path]::GetFileName(([uri]$Url).AbsolutePath)
+            if (-not $leaf) { $leaf = 'asset.bin' }
+            $file = Join-Path $Dest $leaf
+            $curl = @('-fsSL', '--retry', '3', '--retry-delay', '5', '-o', $file)
+            if ($env:ASSETS_TOKEN) { $curl += @('-H', "Authorization: Bearer $($env:ASSETS_TOKEN)") }
+            $curl += $Url
+            Write-Host "Downloading $Name..."
+            & curl.exe @curl | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "Download failed for $Name (curl $LASTEXITCODE)." }
+            if (-not (Test-Path $file) -or (Get-Item $file).Length -eq 0) { throw "Download came back empty for $Name." }
+
+            $head = New-Object byte[] 4
+            $stream = [IO.File]::OpenRead($file)
+            try { $null = $stream.Read($head, 0, 4) } finally { $stream.Dispose() }
+            $isZip = $head[0] -eq 0x50 -and $head[1] -eq 0x4B
+            $gzip = $head[0] -eq 0x1F -and $head[1] -eq 0x8B
+            $xz = $head[0] -eq 0xFD -and $head[1] -eq 0x37
+            $bzip2 = $head[0] -eq 0x42 -and $head[1] -eq 0x5A
+            $isCompressed = $gzip -or $xz -or $bzip2
+
+            if ($isZip) {
+              $zip = Join-Path $Dest 'asset.zip'
+              Copy-Item $file $zip -Force
+              $out = Join-Path $Dest 'unpacked'
+              Expand-Archive -LiteralPath $zip -DestinationPath $out -Force
+              return $out
+            }
+            if ($isCompressed -or $leaf -match '\.tar$') {
+              $out = Join-Path $Dest 'unpacked'
+              New-Item -ItemType Directory -Force $out | Out-Null
+              & tar.exe -xf $file -C $out | Out-Null
+              if ($LASTEXITCODE -ne 0) { throw "Could not extract $Name (tar $LASTEXITCODE)." }
+              return $out
+            }
+            # A single file (e.g. a direct link to Celeste.exe): keep it where it is.
+            return $Dest
+          }
+
+          # --- game: Celeste.exe (FNA build) + Content/ when the archive has it -------------------
+          $game = Get-Asset 'the game files' $env:CELESTE_GAME_URL (Join-Path $env:RUNNER_TEMP 'game')
+          $exe = Get-ChildItem $game -Recurse -File -Filter 'Celeste.exe' | Select-Object -First 1
+          if (-not $exe) { throw "CELESTE_GAME_URL must contain Celeste.exe (the FNA build)." }
+          New-Item -ItemType Directory -Force 'Celeste' | Out-Null
+          Copy-Item $exe.FullName 'Celeste/Celeste.exe' -Force
+          $content = Get-ChildItem $game -Recurse -Directory -Filter 'Content' |
+            Sort-Object { $_.FullName.Length } | Select-Object -First 1
+          if ($content) {
+            if (Test-Path 'Celeste/Content') { Remove-Item -Recurse -Force 'Celeste/Content' }
+            Write-Host 'Copying Content/ (needed by the personal variants)...'
+            Copy-Item $content.FullName 'Celeste/Content' -Recurse -Force
+          }
+          elseif ($env:VARIANT -ne 'public') {
+            Write-Warning 'No Content/ in CELESTE_GAME_URL: -Personal falls back to the plain icon and -EmbedGame will fail.'
+          }
+
+          # --- FMOD 1.10.14 for Android ----------------------------------------------------------
+          $fmod = Get-Asset 'FMOD for Android' $env:FMOD_ANDROID_URL (Join-Path $env:RUNNER_TEMP 'fmod')
+          New-Item -ItemType Directory -Force 'fmod/libs/android-arm64' | Out-Null
+          foreach ($name in 'libfmod.so', 'libfmodstudio.so', 'fmod.jar') {
+            $found = Get-ChildItem $fmod -Recurse -File -Filter $name | Select-Object -First 1
+            if (-not $found) { throw "FMOD_ANDROID_URL must contain $name (FMOD Engine 1.10.14 Android package)." }
+            Copy-Item $found.FullName (Join-Path 'fmod/libs/android-arm64' $name) -Force
+          }
+
+          # --- native libraries: prebuilt (fast) or built here (see the next steps) ---------------
+          if ($env:NATIVES_ANDROID_URL) {
+            $natives = Get-Asset 'the native libraries' $env:NATIVES_ANDROID_URL (Join-Path $env:RUNNER_TEMP 'natives')
+            New-Item -ItemType Directory -Force 'natives/android-arm64' | Out-Null
+            foreach ($name in 'libSDL3.so', 'libFNA3D.so', 'libFAudio.so') {
+              $found = Get-ChildItem $natives -Recurse -File -Filter $name | Select-Object -First 1
+              if (-not $found) { throw "NATIVES_ANDROID_URL must contain $name." }
+              Copy-Item $found.FullName (Join-Path 'natives/android-arm64' $name) -Force
+            }
+            Add-Content $env:GITHUB_ENV 'NATIVES_READY=1'
+          }
+          else {
+            Write-Host 'NATIVES_ANDROID_URL is not set: the native libraries will be built with the NDK.'
+            Add-Content $env:GITHUB_ENV 'NATIVES_READY=0'
+          }
+
+          Get-ChildItem Celeste, fmod/libs/android-arm64, natives/android-arm64 -ErrorAction SilentlyContinue |
+            Select-Object FullName, Length
+
+      - name: Android NDK r27d (only when building the natives here)
+        if: env.NATIVES_READY != '1'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sdk = $env:ANDROID_HOME
+          $sdkmanager = (Get-Command sdkmanager.bat -ErrorAction SilentlyContinue).Source
+          if (-not $sdkmanager) {
+            $sdkmanager = Get-ChildItem (Join-Path $sdk 'cmdline-tools') -Recurse -Filter 'sdkmanager.bat' -ErrorAction SilentlyContinue |
+              Select-Object -First 1 | ForEach-Object FullName
+          }
+          if (-not $sdkmanager) { throw "sdkmanager not found under $sdk (cmdline-tools)." }
+          & $sdkmanager 'ndk;27.3.13750724'
+          if ($LASTEXITCODE -ne 0) { throw "sdkmanager failed to install the NDK ($LASTEXITCODE)." }
+          $ndk = Join-Path $sdk 'ndk/27.3.13750724'
+          if (-not (Test-Path (Join-Path $ndk 'build/cmake/android.toolchain.cmake'))) {
+            throw "The NDK was installed but $ndk doesn't look like r27d."
+          }
+          Add-Content $env:GITHUB_ENV "ANDROID_NDK_HOME=$ndk"
+
+      - name: Native libraries (scripts/build-natives-android.ps1)
+        if: env.NATIVES_READY != '1'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($tool in 'cmake', 'ninja') {
+            if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "$tool is not on PATH." }
+          }
+          ./scripts/build-natives-android.ps1
+          if ($LASTEXITCODE -ne 0) { throw "build-natives-android.ps1 failed ($LASTEXITCODE)." }
+
+      - name: Signing keystore (optional)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = Join-Path $env:USERPROFILE '.celeste-android'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          if (-not $env:CELESTE_KEYSTORE_B64) {
+            Write-Warning 'CELESTE_KEYSTORE_B64 is not set: build-release.ps1 will sign with the debug key. Do not install that APK over a release build.'
+            Add-Content $env:GITHUB_ENV 'SIGNING=debug key'
+            exit 0
+          }
+          foreach ($name in 'CELESTE_KEYSTORE_ALIAS', 'CELESTE_KEYSTORE_PASS') {
+            if (-not [Environment]::GetEnvironmentVariable($name)) { throw "$name must be set together with CELESTE_KEYSTORE_B64." }
+          }
+          $keystore = Join-Path $dir 'release.keystore'
+          [IO.File]::WriteAllBytes($keystore, [Convert]::FromBase64String(($env:CELESTE_KEYSTORE_B64 -replace '\s', '')))
+          @(
+            "CELESTE_KEYSTORE=$keystore",
+            "CELESTE_KEYSTORE_ALIAS=$env:CELESTE_KEYSTORE_ALIAS",
+            "CELESTE_KEYSTORE_PASS=$env:CELESTE_KEYSTORE_PASS"
+          ) | Set-Content (Join-Path $dir 'keystore.env') -Encoding ASCII
+          Add-Content $env:GITHUB_ENV 'SIGNING=release key'
+
+      - name: Build the APK (scripts/build-release.ps1)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $flags = @()
+          if ($env:VARIANT -ne 'public') { $flags += '-Personal' }
+          if ($env:VARIANT -eq 'personal-embedded') { $flags += '-EmbedGame' }
+          Write-Host "Variant: $env:VARIANT -> $($flags -join ' ')"
+          ./scripts/build-release.ps1 @flags
+          if ($LASTEXITCODE -ne 0) { throw "build-release.ps1 failed ($LASTEXITCODE)." }
+
+          $apk = Get-ChildItem 'out' -Filter '*.apk' | Sort-Object LastWriteTime | Select-Object -Last 1
+          if (-not $apk) { throw 'No APK in out/.' }
+          Add-Content $env:GITHUB_ENV "APK=$($apk.Name)"
+          @(
+            '## Build',
+            '',
+            '| | |',
+            '|---|---|',
+            "| Variant | ``$env:VARIANT`` |",
+            "| APK | ``$($apk.Name)`` ($([math]::Round($apk.Length / 1MB, 1)) MB) |",
+            "| Signing | $env:SIGNING |",
+            "| Commit | ``$env:GITHUB_SHA`` |"
+          ) | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      # A personal APK contains official art (and the game, with personal-embedded). Artifacts of a
+      # public repository are public, so it is only uploaded encrypted with ARTIFACT_PASS.
+      - name: Encrypt the personal APK for the artifact
+        if: env.VARIANT != 'public'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:ARTIFACT_PASS) {
+            Write-Warning 'ARTIFACT_PASS is not set, so this personal APK is not uploaded: set it to get an encrypted (7-Zip) artifact instead. The APK is in out/ on the runner.'
+            Add-Content $env:GITHUB_ENV 'UPLOAD=no'
+            exit 0
+          }
+          $sevenZip = (Get-Command 7z.exe -ErrorAction SilentlyContinue).Source
+          if (-not $sevenZip) { $sevenZip = 'C:\Program Files\7-Zip\7z.exe' }
+          if (-not (Test-Path $sevenZip)) { throw '7-Zip not found: cannot encrypt the personal APK.' }
+          & $sevenZip a -t7z -p"$env:ARTIFACT_PASS" -mhe=on (Join-Path 'out' 'personal-apk.7z') (Join-Path 'out' $env:APK) | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "7-Zip failed ($LASTEXITCODE)." }
+          Add-Content $env:GITHUB_ENV 'UPLOAD=encrypted'
+
+      - name: Upload the public APK
+        if: env.VARIANT == 'public'
+        uses: actions/upload-artifact@v4
+        with:
+          name: celeste-android-public
+          path: out/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      # Short retention on purpose: personal-embedded is ~860 MB and artifacts count against the
+      # account's Actions storage quota.
+      - name: Upload the encrypted personal APK
+        if: env.UPLOAD == 'encrypted'
+        uses: actions/upload-artifact@v4
+        with:
+          name: celeste-android-personal-encrypted
+          path: out/personal-apk.7z
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Attach the public APK to the Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:VARIANT -ne 'public') {
+            throw "Refusing to publish a $env:VARIANT build: it contains official art and/or game files."
+          }
+          $tag = $env:GITHUB_REF_NAME
+          & gh release view $tag 2>$null | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Creating release $tag..."
+            & gh release create $tag --title "CelesteAndroid $tag" --generate-notes
+            if ($LASTEXITCODE -ne 0) { throw "gh release create failed ($LASTEXITCODE)." }
+          }
+          & gh release upload $tag (Join-Path 'out' $env:APK) --clobber
+          if ($LASTEXITCODE -ne 0) { throw "gh release upload failed ($LASTEXITCODE)." }
