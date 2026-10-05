@@ -8,27 +8,29 @@ namespace CelesteAndroid
 	/// </summary>
 	internal static class LauncherPrefs
 	{
-		public const string File = "launcher";
+		// Nomes das chaves com o sufixo "Key": os métodos de leitura são Driver/TouchControls,
+		// e um campo com o mesmo nome de um método não compila (CS0102).
+		public const string FileName = "launcher";
 
 		/// <summary>Driver gráfico forçado ("OpenGL" para OpenGL ES; vazio = Vulkan).</summary>
-		public const string Driver = "driver";
+		public const string DriverKey = "driver";
 
 		/// <summary>Controles na tela ("1"/"0"). Ligados por padrão.</summary>
-		public const string Touch = "touch";
+		public const string TouchKey = "touch";
 
 		private static ISharedPreferences Get(Context context) =>
-			context.GetSharedPreferences(File, FileCreationMode.Private)!;
+			context.GetSharedPreferences(FileName, FileCreationMode.Private)!;
 
-		public static string? Driver(Context context) => Get(context).GetString(Driver, "");
+		public static string? Driver(Context context) => Get(context).GetString(DriverKey, "");
 
 		public static void SetDriver(Context context, string driver) =>
-			Get(context).Edit()!.PutString(Driver, driver)!.Apply();
+			Get(context).Edit()!.PutString(DriverKey, driver)!.Apply();
 
 		/// <summary>Os controles de toque vêm ligados: sem eles o jogo não tem como ser jogado
 		/// no celular sem um controle conectado.</summary>
-		public static bool TouchControls(Context context) => Get(context).GetString(Touch, "1") != "0";
+		public static bool TouchControls(Context context) => Get(context).GetString(TouchKey, "1") != "0";
 
 		public static void SetTouchControls(Context context, bool enabled) =>
-			Get(context).Edit()!.PutString(Touch, enabled ? "1" : "0")!.Apply();
+			Get(context).Edit()!.PutString(TouchKey, enabled ? "1" : "0")!.Apply();
 	}
 }
