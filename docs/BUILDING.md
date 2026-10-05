@@ -83,7 +83,7 @@ scripts\deploy-android.ps1                 # afterwards: patch + debug APK + pat
 adb logcat -s CelesteAndroid DOTNET SDL SDL/GPU fmod
 ```
 
-The debug build is `run-as`-able, so the script copies files straight into the app's private storage. To regenerate the patch and background on the device without re-importing:
+The debug build is `run-as`-able, so the script copies files straight into the app's private storage (including `patch.stamp`, so the launcher doesn't re-patch what you just pushed). To regenerate the patch and background on the device without re-importing:
 
 ```
 adb shell am start -n org.celesteandroid.celeste/.LauncherActivity --ez repatch true

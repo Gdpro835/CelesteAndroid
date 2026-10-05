@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Security.Cryptography;
 using Android.Content;
 using Android.Database;
 using Android.Graphics;
+using Android.OS;
 using Android.Provider;
 using Android.Util;
 using CelesteAndroid.Patcher;
@@ -22,7 +24,11 @@ namespace CelesteAndroid
 	public sealed class GameInstaller
 	{
 		private const string GameAssetsRoot = "game";
+		private const string PatcherAssetName = "Celeste.Android.mm.dll";
 		private const int BufferSize = 1 << 20;
+
+		/// <summary>Folga pedida além do jogo em si: patch, fundo das faixas laterais e margem.</summary>
+		private const long MarginBytes = 64L << 20;
 
 		private readonly Context context;
 		private readonly Action<string, float> progress;
@@ -40,8 +46,57 @@ namespace CelesteAndroid
 		public static string BackgroundPng(Context context) => Path.Combine(Files(context), "background.png");
 		public static string UserDir(Context context) => Path.Combine(Files(context), "userdata");
 
+		/// <summary>Assinatura do patch que gerou o Celeste.dll instalado (ver IsPatchCurrent).</summary>
+		public static string PatchStampPath(Context context) =>
+			Path.Combine(Files(context), "patched", "patch.stamp");
+
 		public static bool IsInstalled(Context context) =>
 			File.Exists(PatchedDll(context)) && Directory.Exists(Path.Combine(GameDir(context), "Content"));
+
+		/// <summary>
+		/// O patch que está no APK ainda é o que gerou o Celeste.dll instalado?
+		/// Um APK atualizado pode trazer um módulo de patches novo (mais correções, chaves de
+		/// AppContext novas), e o Celeste.dll antigo continuaria rodando sem elas: nesse caso o
+		/// launcher refaz o patch no aparelho antes de deixar jogar.
+		/// </summary>
+		public static bool IsPatchCurrent(Context context)
+		{
+			string stamp = PatchStampPath(context);
+			if (!File.Exists(stamp))
+			{
+				return false;
+			}
+			string? current = CurrentPatchStamp(context);
+			return current != null && File.ReadAllText(stamp).Trim() == current;
+		}
+
+		/// <summary>
+		/// Identidade do módulo de patches (Celeste.Android.mm.dll) empacotado no APK: o hash muda
+		/// sempre que a lógica do patch muda. Lido dos assets, então vale tanto para o que está
+		/// instalado quanto para o que o APK trouxe.
+		/// </summary>
+		public static string? CurrentPatchStamp(Context context)
+		{
+			try
+			{
+				using Stream module = context.Assets!.Open("patcher/" + PatcherAssetName);
+				return Hash(module);
+			}
+			catch (Exception e)
+			{
+				// APK sem o módulo (não deveria acontecer): quem decide é o Patch(), com erro claro.
+				Log.Warn(GameActivity.LogTag, "Não deu para ler o módulo de patches do APK: " + e.Message);
+				return null;
+			}
+		}
+
+		private static string Hash(Stream stream) => Convert.ToHexString(SHA256.HashData(stream))[..16];
+
+		private static string HashFile(string path)
+		{
+			using FileStream stream = File.OpenRead(path);
+			return Hash(stream);
+		}
 
 		/// <summary>APK pessoal: o jogo vem nos assets (build com -p:EmbedGame=true).</summary>
 		public static bool HasEmbeddedGame(Context context) =>
@@ -64,6 +119,18 @@ namespace CelesteAndroid
 			var files = new List<(Doc doc, string relative)>();
 			files.Add((top.First(d => d.Name == "Celeste.exe"), "Celeste.exe"));
 			CollectFiles(treeUri, top.First(d => d.Name == "Content" && d.IsDir), "Content", files);
+
+			long total = 0;
+			foreach ((Doc doc, string _) in files)
+			{
+				if (doc.Size < 0)
+				{
+					total = -1;
+					break;
+				}
+				total += doc.Size;
+			}
+			EnsureFreeSpace(total < 0 ? null : total);
 
 			CopyAll(files.Select(f => (f.relative, f.doc.Size,
 				(Func<Stream>)(() => resolver.OpenInputStream(DocumentsContract.BuildDocumentUriUsingTree(treeUri, f.doc.Id)!)!))));
@@ -88,6 +155,7 @@ namespace CelesteAndroid
 			var entries = zip.Entries
 				.Where(e => e == exe || (e.FullName.StartsWith(prefix + "Content/", StringComparison.Ordinal) && e.Name.Length > 0))
 				.ToList();
+			EnsureFreeSpace(entries.Sum(e => e.Length));
 			CopyAll(entries.Select(e => (e.FullName[prefix.Length..], e.Length, (Func<Stream>)e.Open)));
 		}
 
@@ -95,6 +163,8 @@ namespace CelesteAndroid
 		public void ImportEmbedded()
 		{
 			progress("Preparing the bundled game…", -1);
+			// O APK é praticamente o jogo embutido: serve de estimativa (conservadora) do tamanho.
+			EnsureFreeSpace(ApkBytes());
 			var files = new List<string>();
 			CollectAssets(GameAssetsRoot, files);
 			CopyAll(files.Select(f => (f[(GameAssetsRoot.Length + 1)..], -1L, (Func<Stream>)(() => context.Assets!.Open(f)))));
@@ -148,38 +218,154 @@ namespace CelesteAndroid
 			long total = Math.Max(1, files.Sum(f => Math.Max(0, f.size)));
 			long done = 0;
 
+			// A cópia vai para um diretório ao lado e o jogo instalado só é substituído no fim:
+			// se a importação falhar no meio (falta de espaço, app fechado), o que já estava
+			// instalado continua funcionando e a sobra é apagada.
+			string staging = GameDir(context) + ".importing";
+			TryDeleteDirectory(staging);
+
+			try
+			{
+				for (int i = 0; i < files.Count; i++)
+				{
+					var (relative, size, open) = files[i];
+					string dest = Path.Combine(staging, relative.Replace('\\', '/'));
+					Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+					using (Stream input = open())
+					using (FileStream output = File.Create(dest))
+					{
+						int read;
+						while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+						{
+							output.Write(buffer, 0, read);
+							done += read;
+						}
+					}
+					// Sem tamanho conhecido (assets), o progresso segue a contagem de arquivos.
+					float fraction = size >= 0 ? done / (float)total : (i + 1) / (float)files.Count;
+					if (i % 8 == 0 || i == files.Count - 1)
+						progress($"Copying game files… {i + 1}/{files.Count}", fraction);
+				}
+
+				if (!File.Exists(Path.Combine(staging, "Celeste.exe")) || !Directory.Exists(Path.Combine(staging, "Content")))
+					throw new InstallException("The copy is incomplete.");
+
+				string gameDir = GameDir(context);
+				if (Directory.Exists(gameDir))
+					Directory.Delete(gameDir, recursive: true);
+				Directory.Move(staging, gameDir);
+			}
+			catch
+			{
+				// A cópia parcial pode passar de 1 GB: não deixa para trás.
+				TryDeleteDirectory(staging);
+				throw;
+			}
+		}
+
+		#endregion
+
+		#region Espaço em disco
+
+		/// <summary>
+		/// Confere se a nova cópia cabe antes de começar: o jogo instalado só é substituído no
+		/// fim, então o pico é (cópia atual + cópia nova) — melhor avisar agora do que falhar no
+		/// meio de 1 GB de cópia.
+		/// </summary>
+		private void EnsureFreeSpace(long? sourceBytes)
+		{
+			if (sourceBytes == null)
+				return;
+			long? available = AvailableBytes(Files(context));
+			if (available == null)
+				return;
+
+			long installed = DirectoryBytes(GameDir(context));
+			long needed = sourceBytes.Value + installed + MarginBytes;
+			if (available.Value >= needed)
+				return;
+
+			// Sobra de uma importação interrompida é o primeiro lugar onde procurar espaço.
 			string staging = GameDir(context) + ".importing";
 			if (Directory.Exists(staging))
-				Directory.Delete(staging, recursive: true);
-
-			for (int i = 0; i < files.Count; i++)
 			{
-				var (relative, size, open) = files[i];
-				string dest = Path.Combine(staging, relative.Replace('\\', '/'));
-				Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-				using (Stream input = open())
-				using (FileStream output = File.Create(dest))
-				{
-					int read;
-					while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
-					{
-						output.Write(buffer, 0, read);
-						done += read;
-					}
-				}
-				// Sem tamanho conhecido (assets), o progresso segue a contagem de arquivos.
-				float fraction = size >= 0 ? done / (float)total : (i + 1) / (float)files.Count;
-				if (i % 8 == 0 || i == files.Count - 1)
-					progress($"Copying game files… {i + 1}/{files.Count}", fraction);
+				Log.Info(GameActivity.LogTag, "Apagando sobra de importação para liberar espaço…");
+				TryDeleteDirectory(staging);
+				available = AvailableBytes(Files(context)) ?? available;
+				installed = DirectoryBytes(GameDir(context));
+				needed = sourceBytes.Value + installed + MarginBytes;
+				if (available.Value >= needed)
+					return;
 			}
 
-			if (!File.Exists(Path.Combine(staging, "Celeste.exe")) || !Directory.Exists(Path.Combine(staging, "Content")))
-				throw new InstallException("The copy is incomplete.");
+			throw new InstallException(
+				$"Not enough free space: about {Size(needed)} needed " +
+				$"({Size(sourceBytes.Value)} for the new copy" +
+				(installed > 0 ? $" + {Size(installed)} for the current one, which is only replaced at the end" : "") +
+				$", plus {Size(MarginBytes)} for patching), but only {Size(available.Value)} is free. " +
+				"Free up some space and try again."
+			);
+		}
 
-			string gameDir = GameDir(context);
-			if (Directory.Exists(gameDir))
-				Directory.Delete(gameDir, recursive: true);
-			Directory.Move(staging, gameDir);
+		/// <summary>Espaço livre no volume do armazenamento interno (null se o Android não informar).</summary>
+		private static long? AvailableBytes(string path)
+		{
+			try
+			{
+				return new StatFs(path).AvailableBytes;
+			}
+			catch (Exception e)
+			{
+				Log.Warn(GameActivity.LogTag, "Não deu para consultar o espaço livre: " + e.Message);
+				return null;
+			}
+		}
+
+		private static long DirectoryBytes(string path)
+		{
+			if (!Directory.Exists(path))
+				return 0;
+			long total = 0;
+			try
+			{
+				foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+					total += new FileInfo(file).Length;
+			}
+			catch (IOException)
+			{
+				// Medida parcial serve: é só para avisar antes de encher o aparelho.
+			}
+			return total;
+		}
+
+		/// <summary>O APK pessoal é praticamente o jogo embutido: estimativa conservadora.</summary>
+		private long? ApkBytes()
+		{
+			try
+			{
+				string? apk = context.ApplicationInfo!.SourceDir;
+				return apk == null ? null : new Java.IO.File(apk).Length();
+			}
+			catch (Exception)
+			{
+				return null;
+			}
+		}
+
+		private static string Size(long bytes) =>
+			bytes >= 1L << 30 ? $"{bytes / (double)(1L << 30):F1} GB" : $"{bytes / (1L << 20)} MB";
+
+		private static void TryDeleteDirectory(string path)
+		{
+			try
+			{
+				if (Directory.Exists(path))
+					Directory.Delete(path, recursive: true);
+			}
+			catch (Exception e)
+			{
+				Log.Warn(GameActivity.LogTag, $"Não deu para apagar {path}: {e.Message}");
+			}
 		}
 
 		#endregion
@@ -212,6 +398,9 @@ namespace CelesteAndroid
 			// O MonoMod também grava símbolos de depuração (.mdb) que não usamos.
 			foreach (string leftover in Directory.GetFiles(Path.GetDirectoryName(patched)!, "*.mdb"))
 				File.Delete(leftover);
+			// Assinatura do módulo que gerou este Celeste.dll: quando o APK trouxer um módulo de
+			// patches diferente, o launcher refaz o patch sozinho (ver IsPatchCurrent).
+			File.WriteAllText(PatchStampPath(context), HashFile(Path.Combine(patcherDir, PatcherAssetName)));
 		}
 
 		/// <summary>Versão desfocada e escurecida da key art do jogo, para as faixas laterais.</summary>

@@ -13,6 +13,7 @@ CelesteAndroid is a launcher + runtime that takes the files of the Celeste PC ve
 - **Vulkan by default** (SDL_GPU), with OpenGL ES as a fallback you can pick in the launcher.
 - **Full audio**: FMOD Studio 1.10.14, the same version the game's sound banks were built with.
 - **Launcher**: pick your game folder or `.zip` and the app copies it, patches it and gets it ready to play.
+- **Touch controls**: an on-screen stick plus **Z** (grab), **X** (dash), **C** (jump) and a small pause button. They press the keys the game has bound by default, fade out when idle and can be turned off in the launcher (they work alongside a controller).
 - **Bring your saves**: *Import saves* copies your `.celeste` save files (e.g. the `Saves` folder from your PC) into the game.
 - **Wide screens**: the game keeps its native 16:9 image and the side bars show a blurred version of the game's key art instead of plain black.
 - **Your files stay yours**: the original `Celeste.exe` is never modified. A patched copy is generated on the device with [MonoMod](https://github.com/MonoMod/MonoMod), the same tooling the [Everest](https://everestapi.github.io/) mod loader uses.
@@ -24,7 +25,7 @@ CelesteAndroid is a launcher + runtime that takes the files of the Celeste PC ve
 | Device | Android 8.0+ (API 26), **ARM64** (arm64-v8a) |
 | Storage | ~1.2 GB free (the game's `Content` folder is ~1.1 GB) |
 | Game | **Celeste for PC, FNA build** (see below) |
-| Input | **A game controller** (Bluetooth or USB). Touch controls aren't implemented yet. |
+| Input | A game controller (Bluetooth or USB) **or** the on-screen touch controls. |
 
 ### Which version of Celeste?
 
@@ -43,7 +44,9 @@ Tested with Celeste **1.4.0.0**.
 3. Open **Celeste** and tap **Open game files** (or **Import .zip**) and select it.
 4. Wait for the import (copy + patch, about 1–2 minutes), then tap **PLAY**.
 
-Your saves live in the app's private storage, and uninstalling the app deletes them. To bring your PC progress over, copy the `Saves` folder from your PC game folder to your phone and use **Import saves**. Your current saves are backed up to `Backups/` first.
+Your saves live in the app's private storage, and uninstalling the app deletes them. To bring your PC progress over, copy the `Saves` folder from your PC game folder to your phone and use **Import saves**. Your current saves are backed up to `Backups/` first. Android's cloud backup only takes the saves and the launcher settings, never the ~1.1 GB of imported game files (they would blow the backup quota and take the saves with them) — so keep your PC copy around.
+
+Updating the app doesn't require importing again: if the new APK ships a newer patch, the launcher re-patches the game on first open (a few seconds) and tells you so.
 
 ## Building from source
 
@@ -87,9 +90,9 @@ The patches are small and focused: a Steamworks stub, SDL2 → SDL3 shims, `GetE
 |---|---|
 | ✅ | Boots to the title screen and plays with a controller (Galaxy S23, Snapdragon 8 Gen 2, Android 16) |
 | ✅ | Vulkan and OpenGL ES, 60 FPS, FMOD audio, pause/resume |
-| ✅ | Import from a folder or `.zip`, patching on the device |
-| 🚧 | **On-screen touch controls** (FNA only reads the first of the several touch devices SDL reports) |
-| ✅ | Importing `.celeste` saves |
+| ✅ | Import from a folder or `.zip`, patching on the device (re-patched automatically when a newer APK changes the patch) |
+| ✅ | **On-screen touch controls**: stick + Z / X / C (+ pause). Reads every touch device SDL reports, so FNA's `TouchPanel` limitation doesn't get in the way |
+| ✅ | Importing `.celeste` saves (kept by Android's cloud backup; the imported game files aren't) |
 | 🚧 | Everest / mods |
 
 Tested on one device so far. Reports from other phones (especially Mali/Exynos/Tensor GPUs) are very welcome.

@@ -30,6 +30,15 @@ Write-Host '=== arquivos ===' -ForegroundColor Cyan
 $tmp = '/data/local/tmp/celeste'
 & $adb shell "rm -rf $tmp && mkdir -p $tmp/patched" | Out-Host
 & $adb push $patched "$tmp/patched/" | Out-Host
+
+# Assinatura do módulo de patches que está no APK: sem ela o launcher acharia que o Celeste.dll
+# enviado aqui foi gerado por um patch antigo e refaria o patch no aparelho a cada abertura.
+$module = Get-ChildItem "$root\src\Celeste.Android.Patches\bin\Debug" -Recurse -Filter 'Celeste.Android.mm.dll' |
+	Select-Object -First 1
+if (-not $module) { throw 'Celeste.Android.mm.dll não encontrado (compile o Celeste.Android.Patches).' }
+$stampFile = Join-Path $env:TEMP 'celeste-patch.stamp'
+(Get-FileHash $module.FullName -Algorithm SHA256).Hash.Substring(0, 16) | Set-Content $stampFile -NoNewline -Encoding ASCII
+& $adb push $stampFile "$tmp/patched/patch.stamp" | Out-Host
 if ($Content) {
 	& $adb shell "mkdir -p $tmp/Celeste" | Out-Host
 	& $adb push "$root\Celeste\Content" "$tmp/Celeste/" | Out-Host

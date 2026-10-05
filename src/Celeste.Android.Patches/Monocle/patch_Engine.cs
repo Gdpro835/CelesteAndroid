@@ -18,6 +18,12 @@ namespace Monocle
 		private static Texture2D? pillarboxPixel;
 		private static bool pillarboxLoaded;
 
+		/// <summary>
+		/// On-screen controls for touch-only devices. They are updated and drawn here because
+		/// this is the one place the port already owns in the game's frame (see RenderCore).
+		/// </summary>
+		private static readonly CelesteAndroid.Touch.TouchControls touchControls = new();
+
 		[MonoModIgnore]
 		public patch_Engine(int width, int height, int windowWidth, int windowHeight, string windowTitle, bool fullscreen, bool vsync)
 			: base(width, height, windowWidth, windowHeight, windowTitle, fullscreen, vsync)
@@ -47,6 +53,9 @@ namespace Monocle
 				scene.Render();
 				scene.AfterRender();
 			}
+			// On-screen pad (touch): reads the fingers and draws the controls over the game
+			// image. It is a no-op when the host did not enable touch controls.
+			touchControls.UpdateAndDraw(GraphicsDevice, Viewport);
 		}
 
 		private void DrawPillarbox()

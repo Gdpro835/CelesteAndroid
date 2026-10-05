@@ -34,7 +34,6 @@ namespace CelesteAndroid
 		private const int RequestFolder = 1;
 		private const int RequestZip = 2;
 		private const int RequestSaves = 3;
-		private const string PrefDriver = "driver";
 
 		private static readonly Color Night = Color.ParseColor("#120C22");
 		private static readonly Color Accent = Color.ParseColor("#F2B8D8");
@@ -52,8 +51,6 @@ namespace CelesteAndroid
 		private ProgressBar progressBar = null!;
 		private TextView progressText = null!;
 		private bool busy;
-
-		private ISharedPreferences Prefs => GetSharedPreferences("launcher", FileCreationMode.Private)!;
 
 		protected override void OnCreate(Bundle? savedInstanceState)
 		{
@@ -95,6 +92,17 @@ namespace CelesteAndroid
 			else if (!busy && !GameInstaller.IsInstalled(this) && GameInstaller.HasEmbeddedGame(this))
 			{
 				RunInstall(installer => installer.ImportEmbedded());
+			}
+			// APK novo com um módulo de patches diferente: o Celeste.dll instalado foi gerado por
+			// um patch antigo e roda sem as correções novas. Refaz o patch (sem reimportar o jogo).
+			else if (!busy && GameInstaller.IsInstalled(this) && !GameInstaller.IsPatchCurrent(this))
+			{
+				RunJob(installer =>
+				{
+					Repatch(installer);
+					RunOnUiThread(LoadArt);
+					return "✓  Game updated for this version";
+				});
 			}
 		}
 
@@ -164,11 +172,15 @@ namespace CelesteAndroid
 			importSaves.Click += (_, _) => StartActivityForResult(new Intent(Intent.ActionOpenDocumentTree), RequestSaves);
 			driverToggle = LinkText("");
 			driverToggle.Click += (_, _) => ToggleDriver();
+			touchToggle = LinkText("");
+			touchToggle.Click += (_, _) => ToggleTouch();
 			links.AddView(openZip);
 			links.AddView(Text("·", 14, Color.Argb(120, 255, 255, 255), TypefaceStyle.Normal), Margins(left: 10, right: 10));
 			links.AddView(importSaves);
 			links.AddView(Text("·", 14, Color.Argb(120, 255, 255, 255), TypefaceStyle.Normal), Margins(left: 10, right: 10));
 			links.AddView(driverToggle);
+			links.AddView(Text("·", 14, Color.Argb(120, 255, 255, 255), TypefaceStyle.Normal), Margins(left: 10, right: 10));
+			links.AddView(touchToggle);
 			panel.AddView(links, Margins(top: 6, left: 6));
 
 			progressBox = new LinearLayout(this) { Orientation = Orientation.Vertical, Visibility = ViewStates.Gone };
@@ -290,13 +302,14 @@ namespace CelesteAndroid
 					? "✓  Ready to play"
 					: "Pick the folder of your Celeste PC copy (FNA / \"opengl\" build) or the itch.io .zip.";
 			}
-			driverToggle.Text = "Graphics: " + (Prefs.GetString(PrefDriver, "") == "OpenGL" ? "OpenGL ES" : "Vulkan");
+			driverToggle.Text = "Graphics: " + (LauncherPrefs.Driver(this) == "OpenGL" ? "OpenGL ES" : "Vulkan");
+			touchToggle.Text = "Touch: " + (LauncherPrefs.TouchControls(this) ? "On" : "Off");
 		}
 
 		private void Play()
 		{
 			var intent = new Intent(this, typeof(GameActivity));
-			string? driver = Prefs.GetString(PrefDriver, "");
+			string? driver = LauncherPrefs.Driver(this);
 			if (!string.IsNullOrEmpty(driver))
 				intent.PutExtra(GameActivity.ExtraDriver, driver);
 			StartActivity(intent);
@@ -304,8 +317,14 @@ namespace CelesteAndroid
 
 		private void ToggleDriver()
 		{
-			string next = Prefs.GetString(PrefDriver, "") == "OpenGL" ? "" : "OpenGL";
-			Prefs.Edit()!.PutString(PrefDriver, next)!.Apply();
+			// Vazio = deixa o FNA escolher (SDL_GPU → Vulkan); "OpenGL" força o OpenGL ES.
+			LauncherPrefs.SetDriver(this, LauncherPrefs.Driver(this) == "OpenGL" ? "" : "OpenGL");
+			RefreshState();
+		}
+
+		private void ToggleTouch()
+		{
+			LauncherPrefs.SetTouchControls(this, !LauncherPrefs.TouchControls(this));
 			RefreshState();
 		}
 
@@ -343,11 +362,17 @@ namespace CelesteAndroid
 			RunJob(installer =>
 			{
 				import(installer);
-				installer.Patch();
-				installer.PrepareBackground();
+				Repatch(installer);
 				RunOnUiThread(LoadArt);
 				return "✓  Game imported! Ready to play";
 			});
+		}
+
+		/// <summary>Gera o Celeste.dll patcheado e o fundo das faixas laterais (no aparelho).</summary>
+		private static void Repatch(GameInstaller installer)
+		{
+			installer.Patch();
+			installer.PrepareBackground();
 		}
 
 		/// <summary>Roda uma tarefa do instalador fora da thread de UI, com progresso; devolve a mensagem de sucesso.</summary>

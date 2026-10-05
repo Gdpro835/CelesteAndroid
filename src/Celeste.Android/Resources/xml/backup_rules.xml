@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+	Auto Backup rules for Android 11 and older (see backup_rules in the manifest).
+
+	files/ holds two very different things: the saves (userdata/, a few KB — the one thing
+	worth backing up) and the imported game (Celeste/, ~1.1 GB — the user's own copy, and
+	way over the 25 MB quota). Backing the game up would blow the quota and take the saves
+	down with it, so only userdata/ and the launcher preferences are included.
+-->
+<full-backup-content>
+	<include domain="file" path="userdata/" />
+	<include domain="sharedpref" path="." />
+	<exclude domain="file" path="Celeste/" />
+	<exclude domain="file" path="Celeste.importing/" />
+	<exclude domain="file" path="patched/" />
+	<exclude domain="file" path="background.png" />
+</full-backup-content>

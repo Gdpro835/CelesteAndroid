@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+	Android 12+ replacement for backup_rules.xml.
+
+	Cloud backup: saves (userdata/) and the launcher preferences only — same reasoning as
+	backup_rules.xml (the imported game is ~1.1 GB and over the quota).
+
+	Device transfer: local, no quota, so the saves travel with the rest; the imported game
+	still stays out (the user has the PC copy and a transfer would take much longer).
+-->
+<data-extraction-rules>
+	<cloud-backup>
+		<include domain="file" path="userdata/" />
+		<include domain="sharedpref" path="." />
+		<exclude domain="file" path="Celeste/" />
+		<exclude domain="file" path="Celeste.importing/" />
+		<exclude domain="file" path="patched/" />
+		<exclude domain="file" path="background.png" />
+	</cloud-backup>
+	<device-transfer>
+		<include domain="file" path="userdata/" />
+		<include domain="sharedpref" path="." />
+		<exclude domain="file" path="Celeste/" />
+		<exclude domain="file" path="Celeste.importing/" />
+		<exclude domain="file" path="patched/" />
+		<exclude domain="file" path="background.png" />
+	</device-transfer>
+</data-extraction-rules>
