@@ -129,7 +129,7 @@ jobs:
           if (-not $env:CELESTE_GAME_URL) { $missing += 'CELESTE_GAME_URL' }
           if (-not $env:FMOD_ANDROID_URL) { $missing += 'FMOD_ANDROID_URL' }
           if ($missing.Count -gt 0) {
-            throw "Repository secrets not set: $($missing -join ', '). See the header of this workflow and docs/BUILDING.md."
+            throw "Repository secrets not set: $($missing -join ', '). Add them in the repository under Settings > Secrets and variables > Actions > New repository secret (see docs/ci/README.md). These are not fields of the Run workflow dialog."
           }
 
           # Downloads a secret URL and unpacks it (zip/gzip/xz/bzip2 are detected by content, so

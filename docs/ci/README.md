@@ -23,6 +23,27 @@ If the push is rejected with a workflow-scope error, re-authorize the CLI with t
 (`gh auth refresh -h github.com -s workflow`) or create the file through the GitHub web UI
 (**Add file → Create new file**, path `.github/workflows/build-apk.yml`, paste the contents).
 
+## Why the "Run workflow" dialog has no field for the links
+
+That dialog only renders `workflow_dispatch` inputs — here, the *Which APK to build* choice. Secrets
+are never form fields: GitHub deliberately keeps them out of anything that becomes part of a run
+(inputs are recorded in the run log and are visible to anyone who can read the repository, which
+would expose the asset URLs). So the link secrets are configured once, before the first run:
+
+1. Repository page → **Settings** (the tab strip; owner only. On a phone, scroll the tabs sideways).
+2. **Secrets and variables → Actions → New repository secret**.
+3. Name `CELESTE_GAME_URL`, value = the archive link → **Add secret**. Repeat for `FMOD_ANDROID_URL`.
+
+Or from a PC with the GitHub CLI:
+
+```powershell
+gh secret set CELESTE_GAME_URL --body "https://..." --repo Gdpro835/CelesteAndroid
+gh secret set FMOD_ANDROID_URL --body "https://..." --repo Gdpro835/CelesteAndroid
+```
+
+Only *links* go in (`gh secret set` accepts text up to 48 KB, not files), and the links must be
+reachable when the job runs.
+
 ## Secrets it needs
 
 The workflow downloads what the repository can't ship; the URLs live in repository secrets
