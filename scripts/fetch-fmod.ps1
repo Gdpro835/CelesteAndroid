@@ -1,7 +1,7 @@
 # Copia os tres arquivos do FMOD Engine 1.10.14 (Android) para fmod/libs/android-arm64.
 #
 # O FMOD é proprietário: o pacote é baixado de fmod.com (conta gratuita → Download →
-# versão 1.10.14 → FMOD Studio API → Android) e este script coloca os arquivos no lugar,
+# FMOD Engine → versão 1.10.14 (unsupported) → Android) e este script coloca os arquivos no lugar,
 # sem depender de saber os caminhos dentro do .tar.gz (ver docs/BUILDING.md, seção 3).
 #
 # Uso: scripts\fetch-fmod.ps1 -Archive "$env:USERPROFILE\Downloads\fmodstudioapi11014android.tar.gz"
