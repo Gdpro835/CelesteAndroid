@@ -52,7 +52,7 @@ The workflow downloads what the repository can't ship; the URLs live in reposito
 | Secret | Required | What it points to |
 |---|---|---|
 | `CELESTE_GAME_URL` | yes | Archive with `Celeste.exe` (FNA build) — the patch module compiles against it. Add `Content/` to use the personal variants. |
-| `FMOD_ANDROID_URL` | yes | Archive with `libfmod.so`, `libfmodstudio.so`, `fmod.jar` (FMOD Engine 1.10.14, Android). |
+| `FMOD_ANDROID_URL` | yes | The FMOD Engine 1.10.14 Android package (the same `.tar.gz` you download from fmod.com by hand, see [docs/BUILDING.md](../BUILDING.md) section 3) kept somewhere private: `libfmod.so`, `libfmodstudio.so` and `fmod.jar` are picked out of it by the workflow. |
 | `NATIVES_ANDROID_URL` | no | Archive with the prebuilt `libSDL3.so`, `libFNA3D.so`, `libFAudio.so`. Without it the workflow installs NDK r27d and builds them (~10 min). |
 | `ASSETS_TOKEN` | no | Bearer token for the downloads above when they need authentication. |
 | `CELESTE_KEYSTORE_B64` | no | base64 of the release keystore. Without it (plus `CELESTE_KEYSTORE_ALIAS` / `CELESTE_KEYSTORE_PASS`) the APK is signed with the debug key. |
