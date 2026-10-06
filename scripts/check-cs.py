@@ -239,8 +239,64 @@ def duplicate_members(code: str):
     return problems
 
 
+def touch_control_wiring(root='src'):
+    """Checagens do pad: um controle novo esquecido em algum lugar não dá erro de compilação,
+    ele só não funciona (foi o caso do botão de teclado, desenhado mas fora do HitTest)."""
+    host = Path(root) / 'Shared' / 'HostConfig.cs'
+    pad = Path(root) / 'Celeste.Android.Patches' / 'Touch' / 'TouchControls.cs'
+    if not host.is_file() or not pad.is_file():
+        return []
+    problems = []
+
+    host_code = strip_code(strip_directives(host.read_text(encoding='utf-8-sig')))
+    enum = re.search(r'enum TouchControl\s*\{(.*?)\}', host_code, re.S)
+    if not enum:
+        return ['TouchControl: enum não encontrado em ' + str(host)]
+    members = dict((m.group(1), int(m.group(2))) for m in re.finditer(r'(\w+)\s*=\s*(\d+)', enum.group(1)))
+    count = re.search(r'const int Count = (\d+)', host_code)
+    if not count:
+        return ['TouchLayoutSpec.Count não encontrado']
+    count = int(count.group(1))
+
+    # 1) Count precisa cobrir todos os valores do enum (índices são usados como posição no layout)
+    for name, value in sorted(members.items(), key=lambda kv: kv[1]):
+        if value >= count:
+            problems.append(f'HostConfig: {name} = {value} mas TouchLayoutSpec.Count = {count}')
+
+    # 2) o layout de fábrica precisa de uma posição por controle
+    default = re.search(r'static TouchLayoutSpec Default \{ get; \} = new TouchLayoutSpec\((.*?)\);', host_code, re.S)
+    if default:
+        positions = len(re.findall(r'new TouchControlSpec\(', default.group(1)))
+        if positions != count:
+            problems.append(f'HostConfig: Default tem {positions} posições, Count = {count}')
+
+    # 3) todo controle precisa ser reconhecido pelo HitTest, senão o toque nele é ignorado
+    pad_code = strip_code(strip_directives(pad.read_text(encoding='utf-8-sig')))
+    hit = re.search(r'public Control HitTest\(', pad_code)
+    if hit:
+        depth, end = 0, None
+        for i in range(hit.end() - 1, len(pad_code)):
+            if pad_code[i] == '{':
+                depth += 1
+            elif pad_code[i] == '}':
+                depth -= 1
+                if depth == 0:
+                    end = i
+                    break
+        body = pad_code[hit.end():end] if end else pad_code[hit.end():]
+        for name in members:
+            if f'TouchControl.{name}' not in body:
+                problems.append(f'HitTest: TouchControl.{name} nunca é atingido (o toque nesse controle é ignorado)')
+    return problems
+
+
 def main(paths):
     bad = 0
+    extra = touch_control_wiring()
+    for problem in extra:
+        print(f'--- {problem}')
+    if extra:
+        bad += 1
     for path in paths:
         src = strip_directives(Path(path).read_text(encoding='utf-8-sig'))
         code = strip_code(src)

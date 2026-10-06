@@ -67,6 +67,28 @@ namespace CelesteAndroid.Touch
 		[return: MarshalAs(UnmanagedType.I1)]
 		private static extern bool SDL_PushEvent(ref SDL_Event evt);
 
+		[DllImport(Library, EntryPoint = "SDL_SetHint", CallingConvention = CallingConvention.Cdecl)]
+		private static extern bool SDL_SetHint(
+			[MarshalAs(UnmanagedType.LPUTF8Str)] string name,
+			[MarshalAs(UnmanagedType.LPUTF8Str)] string value);
+
+		[DllImport(Library, EntryPoint = "SDL_GetError", CallingConvention = CallingConvention.Cdecl)]
+		private static extern IntPtr SDL_GetError();
+
+		/// <summary>
+		/// Faz o SDL mostrar o teclado da tela mesmo quando ele acha que existe um teclado físico
+		/// (o padrão do hint é "auto": mostra só se não houver). O valor precisa estar definido
+		/// antes de SDL_StartTextInput, e é isso que o botão de teclado do pad significa.
+		/// </summary>
+		public static void EnableScreenKeyboard() => SDL_SetHint("SDL_ENABLE_SCREEN_KEYBOARD", "1");
+
+		/// <summary>Último erro do SDL (vazio quando não houve), para o log do pad.</summary>
+		public static string LastError()
+		{
+			IntPtr error = SDL_GetError();
+			return error == IntPtr.Zero ? string.Empty : (Marshal.PtrToStringUTF8(error) ?? string.Empty);
+		}
+
 		/// <summary>
 		/// Fills <paramref name="fingers"/> with the active fingers of every touch device SDL
 		/// reports (merging them: which device index is the screen changes between devices and

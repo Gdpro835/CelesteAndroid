@@ -297,17 +297,32 @@ namespace CelesteAndroid.Touch
 				if (TextInputEXT.IsScreenKeyboardShown())
 				{
 					TextInputEXT.StopTextInput();
+					return;
 				}
-				else
+
+				if (TextInputEXT.WindowHandle == IntPtr.Zero)
 				{
-					TextInputEXT.StartTextInput();
+					Warn("a janela do SDL ainda não foi criada");
+					return;
+				}
+
+				SdlInput.EnableScreenKeyboard();
+				TextInputEXT.StartTextInput();
+				// StartTextInput não devolve nada pelo FNA: se o SDL recusou (janela inválida, por
+				// exemplo) o texto continua inativo e o erro fica no SDL_GetError.
+				if (!TextInputEXT.IsTextInputActive())
+				{
+					Warn("SDL recusou o pedido: " + SdlInput.LastError());
 				}
 			}
 			catch (Exception e)
 			{
-				FNALoggerEXT.LogWarn?.Invoke("TouchControls: não consegui alternar o teclado: " + e.Message);
+				Warn(e.Message);
 			}
 		}
+
+		private static void Warn(string message) =>
+			FNALoggerEXT.LogWarn?.Invoke("TouchControls: teclado: " + message);
 
 		private static bool ScreenKeyboardShown()
 		{
@@ -622,6 +637,7 @@ namespace CelesteAndroid.Touch
 				if (Hits(point, TouchControl.Grab)) return Control.Grab;
 				if (Hits(point, TouchControl.Journal)) return Control.Journal;
 				if (Hits(point, TouchControl.Retry)) return Control.Retry;
+				if (Hits(point, TouchControl.Keyboard)) return Control.Keyboard;
 
 				// O manche agarra dentro de uma caixa em volta do lugar configurado e flutua a partir daí.
 				if (!stickTaken)
