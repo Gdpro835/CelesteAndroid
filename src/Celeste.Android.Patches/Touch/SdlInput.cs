@@ -149,6 +149,15 @@ namespace CelesteAndroid.Touch
 		public static bool PushKey(GameKey key, bool pressed)
 		{
 			(int scancode, uint keycode) = key.Codes();
+			return PushScancode(scancode, keycode, pressed);
+		}
+
+		/// <summary>
+		/// Mesma coisa para qualquer tecla, não só as do <see cref="GameKey"/>: é o que a digitação
+		/// precisa (ver VirtualTyping), porque o teclado do sistema entrega caracteres, não teclas.
+		/// </summary>
+		public static bool PushScancode(int scancode, uint keycode, bool pressed)
+		{
 			SDL_Event evt = default;
 			evt.Type = pressed ? EventKeyDown : EventKeyUp;
 			evt.Scancode = scancode;

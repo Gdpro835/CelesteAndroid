@@ -107,6 +107,7 @@ namespace CelesteAndroid.Touch
 			{
 				// Turning the setting off must not leave a key held down in the game.
 				ReleaseAllKeys();
+				VirtualTyping.Update(keyboardShown: false);
 				return;
 			}
 
@@ -140,6 +141,11 @@ namespace CelesteAndroid.Touch
 			{
 				lastTouchMs = now;
 			}
+
+			// O que o jogador digita no teclado do sistema vira tecla de verdade (ver VirtualTyping):
+			// o jogo só lê o estado do teclado, e o SDL manda o pressionamento e a soltura do
+			// caractere no mesmo quadro, então sem isto a digitação nunca chega à tela.
+			VirtualTyping.Update(keyboardShown);
 
 			// The pad fades out when nobody touches the screen (playing with a controller).
 			float alpha = MathHelper.Clamp(
