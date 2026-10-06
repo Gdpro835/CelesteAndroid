@@ -376,7 +376,7 @@ namespace CelesteAndroid
 
 			overlay.AddView(Text("Touch layout", 22, Color.White, TypefaceStyle.Bold));
 			overlay.AddView(
-				Text("Drag each control where you want it. Pause stays visible even when the pad fades.",
+				Text("Drag each control where you want it. Pause stays visible even when the pad fades; the keyboard button opens the device keyboard so you can type in search boxes.",
 					13, Color.Argb(190, 255, 255, 255), TypefaceStyle.Normal),
 				Margins(top: 6)
 			);

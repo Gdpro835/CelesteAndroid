@@ -19,6 +19,7 @@ namespace CelesteAndroid
 		private const int Pause = (int)TouchControl.Pause;
 		private const int Journal = (int)TouchControl.Journal;
 		private const int Retry = (int)TouchControl.Retry;
+		private const int Keyboard = (int)TouchControl.Keyboard;
 
 		private readonly float[] x = new float[TouchLayoutSpec.Count];
 		private readonly float[] y = new float[TouchLayoutSpec.Count];
@@ -142,6 +143,7 @@ namespace CelesteAndroid
 			DrawPause(canvas);
 			DrawButton(canvas, Journal, "T");
 			DrawButton(canvas, Retry, "R");
+			DrawKeyboard(canvas);
 		}
 
 		private void DrawButton(Canvas canvas, int index, string label)
@@ -153,6 +155,29 @@ namespace CelesteAndroid
 			ink.TextSize = radius * 1.1f;
 			canvas.DrawText(label, center.X, center.Y - (ink.Descent() + ink.Ascent()) / 2f, ink);
 		}
+
+		/// <summary>Mesmo glifo do jogo (5x5 quadradinhos): o botão que abre o teclado do aparelho.</summary>
+		private void DrawKeyboard(Canvas canvas)
+		{
+			Vector2Like center = Center(Keyboard);
+			float radius = Radius(Keyboard);
+			canvas.DrawCircle(center.X, center.Y, radius, dragging == Keyboard ? selected : fill);
+			float cell = MathF.Max(1f, radius * 0.22f);
+			float x0 = center.X - cell * 2.5f;
+			float y0 = center.Y - cell * 2.5f;
+			for (int row = 0; row < 5; row++)
+			{
+				for (int col = 0; col < 5; col++)
+				{
+					if ((GlyphKeyboard[row] & (1u << (4 - col))) != 0)
+					{
+						canvas.DrawRect(x0 + col * cell, y0 + row * cell, x0 + (col + 1) * cell, y0 + (row + 1) * cell, ink);
+					}
+				}
+			}
+		}
+
+		private static readonly uint[] GlyphKeyboard = { 0b11111, 0b10101, 0b11111, 0b10001, 0b11111 };
 
 		private void DrawPause(Canvas canvas)
 		{

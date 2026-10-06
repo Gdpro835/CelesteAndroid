@@ -76,6 +76,7 @@ namespace CelesteAndroid
 		Pause = 4,
 		Journal = 5,
 		Retry = 6,
+		Keyboard = 7,
 	}
 
 	/// <summary>Posição e tamanho de um controle, normalizados pela área do jogo (0..1).</summary>
@@ -107,7 +108,7 @@ namespace CelesteAndroid
 	/// </summary>
 	public sealed class TouchLayoutSpec
 	{
-		public const int Count = 7;
+		public const int Count = 8;
 		private const string Version = "v1";
 		private const float MinScale = 0.6f;
 		private const float MaxScale = 1.6f;
@@ -134,7 +135,8 @@ namespace CelesteAndroid
 
 		/// <summary>
 		/// Layout de fábrica: manche à esquerda, Z/X/C à direita, e a coluna de botões secundários
-		/// (pausa, journal, retry) no canto superior direito, longe do trio de ação.
+		/// (pausa, journal, retry) no canto superior direito, longe do trio de ação, e o teclado no
+		/// canto oposto — é o único controle que não aperta tecla nenhuma, então fica fora do caminho.
 		/// </summary>
 		public static TouchLayoutSpec Default { get; } = new TouchLayoutSpec(
 			new[]
@@ -146,6 +148,7 @@ namespace CelesteAndroid
 				new TouchControlSpec(0.952f, 0.085f, 0.050f), // Pause
 				new TouchControlSpec(0.952f, 0.235f, 0.062f), // Journal (Tab)
 				new TouchControlSpec(0.952f, 0.400f, 0.062f), // Retry (R)
+				new TouchControlSpec(0.048f, 0.085f, 0.050f), // Keyboard (abre o teclado do aparelho)
 			},
 			1f
 		);

@@ -13,7 +13,7 @@ CelesteAndroid is a launcher + runtime that takes the files of the Celeste PC ve
 - **Vulkan by default** (SDL_GPU), with OpenGL ES as a fallback you can pick in the launcher.
 - **Full audio**: FMOD Studio 1.10.14, the same version the game's sound banks were built with.
 - **Launcher**: pick your game folder or `.zip` and the app copies it, patches it and gets it ready to play.
-- **Touch controls**: an on-screen stick plus **Z** (grab), **X** (dash), **C** (jump), **Tab** (journal), **R** (retry) and a pause button that never hides. They press the keys the game has bound by default, fade out when idle and can be turned off in the launcher (they work alongside a controller). **Layout** in the launcher opens an editor where you drag each control where you want it and change its size; "Left-handed" mirrors everything.
+- **Touch controls**: an on-screen stick plus **Z** (grab), **X** (dash), **C** (jump), **Tab** (journal), **R** (retry), a pause button that never hides and a keyboard button that opens the device keyboard (the only way to type on a phone). They press the keys the game has bound by default, fade out when idle and can be turned off in the launcher (they work alongside a controller). **Layout** in the launcher opens an editor where you drag each control where you want it and change its size; "Left-handed" mirrors everything.
 - **Bring your saves**: *Import saves* copies your `.celeste` save files (e.g. the `Saves` folder from your PC) into the game.
 - **Wide screens**: the game keeps its native 16:9 image and the side bars show a blurred version of the game's key art instead of plain black.
 - **Your files stay yours**: the original `Celeste.exe` is never modified. A patched copy is generated on the device with [MonoMod](https://github.com/MonoMod/MonoMod), the same tooling the [Everest](https://everestapi.github.io/) mod loader uses.
@@ -91,7 +91,7 @@ The patches are small and focused: a Steamworks stub, SDL2 → SDL3 shims, `GetE
 | ✅ | Boots to the title screen and plays with a controller (Galaxy S23, Snapdragon 8 Gen 2, Android 16) |
 | ✅ | Vulkan and OpenGL ES, 60 FPS, FMOD audio, pause/resume |
 | ✅ | Import from a folder or `.zip`, patching on the device (re-patched automatically when a newer APK changes the patch) |
-| ✅ | **On-screen touch controls**: stick + Z / X / C / Tab / R (+ always-visible pause), positions/size editable in the launcher. Reads every touch device SDL reports, so FNA's `TouchPanel` limitation doesn't get in the way |
+| ✅ | **On-screen touch controls**: stick + Z / X / C / Tab / R (+ always-visible pause and a button that opens the device keyboard), positions/size editable in the launcher. Reads every touch device SDL reports, so FNA's `TouchPanel` limitation doesn't get in the way |
 | ✅ | Importing `.celeste` saves (kept by Android's cloud backup; the imported game files aren't) |
 | 🚧 | Everest / mods |
 

@@ -3,12 +3,15 @@ using System.Collections.Generic;
 using CelesteAndroid;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 
 namespace CelesteAndroid.Touch
 {
 	/// <summary>
 	/// On-screen pad: an analog stick that walks with the arrow keys plus Z (grab), X (dash),
-	/// C (jump), Escape (pause), Tab (journal) and R (retry) — the keys Celeste ships bound by default. Presses are pushed
+	/// C (jump), Escape (pause), Tab (journal) and R (retry) — the keys Celeste ships bound by default. One more
+/// button presses nothing: it opens the device's keyboard (see <see cref="ToggleKeyboard"/>), which is the only
+/// way to type on a phone. Presses are pushed
 	/// into SDL's queue and FNA turns them into <c>Keyboard.keys</c> at the start of the next tick
 	/// (see <see cref="SdlInput"/>).
 	///
@@ -60,6 +63,7 @@ namespace CelesteAndroid.Touch
 			Pause = (int)TouchControl.Pause,
 			Journal = (int)TouchControl.Journal,
 			Retry = (int)TouchControl.Retry,
+			Keyboard = (int)TouchControl.Keyboard,
 		}
 
 		private static readonly GameKey[] AllKeys =
@@ -76,6 +80,10 @@ namespace CelesteAndroid.Touch
 		private readonly bool[] keyDown = new bool[Enum.GetValues<GameKey>().Length];
 		private readonly bool[] directionDown = new bool[4];
 		private int grabCount;
+
+		private bool keyboardDown;
+		private bool keyboardShown;
+		private long keyboardCheckMs;
 
 		private Vector2 stickOrigin;
 		private Vector2 stick;
@@ -119,6 +127,18 @@ namespace CelesteAndroid.Touch
 
 			int fingerCount = SdlInput.PollFingers(fingers);
 			long now = Environment.TickCount64;
+
+			// Com o teclado do aparelho aberto o pad não pode sumir: o botão que o fecha está nele.
+			// IsScreenKeyboardShown é uma chamada JNI no Android, então não vai em todo frame.
+			if (now - keyboardCheckMs >= 250)
+			{
+				keyboardCheckMs = now;
+				keyboardShown = ScreenKeyboardShown();
+			}
+			if (keyboardShown)
+			{
+				lastTouchMs = now;
+			}
 
 			// The pad fades out when nobody touches the screen (playing with a controller).
 			float alpha = MathHelper.Clamp(
@@ -201,9 +221,10 @@ namespace CelesteAndroid.Touch
 				{
 					continue;
 				}
-				if (pauseOnly && target != Control.Pause)
+				if (pauseOnly && target != Control.Pause && target != Control.Keyboard)
 				{
-					// Só a pausa funciona no toque que acorda o pad.
+					// Só a pausa e o teclado funcionam no toque que acorda o pad: são ações do
+					// sistema, não comandos do jogo.
 					continue;
 				}
 				grabs[grabCount++] = new Grab(id, target);
@@ -252,6 +273,52 @@ namespace CelesteAndroid.Touch
 			SetKey(GameKey.Escape, FindControl(Control.Pause) >= 0);
 			SetKey(GameKey.Tab, FindControl(Control.Journal) >= 0);
 			SetKey(GameKey.R, FindControl(Control.Retry) >= 0);
+
+			// O botão do teclado não aperta tecla: ele abre/fecha o teclado do aparelho, uma vez
+			// por toque (na borda de subida, senão ficaria alternando a cada frame).
+			bool keyboard = FindControl(Control.Keyboard) >= 0;
+			if (keyboard && !keyboardDown)
+			{
+				ToggleKeyboard();
+			}
+			keyboardDown = keyboard;
+		}
+
+		/// <summary>
+		/// Abre/fecha o teclado do aparelho. TextInputEXT vai até SDL_StartTextInput, e é o SDL que
+		/// pede a tela do IME no Android (<c>Android_JNI_ShowScreenKeyboard</c>); os caracteres que
+		/// o jogador digita voltam como SDL_EVENT_TEXT_INPUT, que o FNA entrega em
+		/// <c>TextInputEXT.TextInput</c> — o mesmo caminho que o jogo usaria num teclado físico.
+		/// </summary>
+		private static void ToggleKeyboard()
+		{
+			try
+			{
+				if (TextInputEXT.IsScreenKeyboardShown())
+				{
+					TextInputEXT.StopTextInput();
+				}
+				else
+				{
+					TextInputEXT.StartTextInput();
+				}
+			}
+			catch (Exception e)
+			{
+				FNALoggerEXT.LogWarn?.Invoke("TouchControls: não consegui alternar o teclado: " + e.Message);
+			}
+		}
+
+		private static bool ScreenKeyboardShown()
+		{
+			try
+			{
+				return TextInputEXT.IsScreenKeyboardShown();
+			}
+			catch (Exception)
+			{
+				return false;
+			}
 		}
 
 		private void SetDirection(int index, GameKey key, float value, float on, float off)
@@ -384,6 +451,7 @@ namespace CelesteAndroid.Touch
 					DrawButton(spriteBatch, layout, TouchControl.Grab, GlyphZ, alpha);
 					DrawButton(spriteBatch, layout, TouchControl.Journal, GlyphT, alpha);
 					DrawButton(spriteBatch, layout, TouchControl.Retry, GlyphR, alpha);
+					DrawButton(spriteBatch, layout, TouchControl.Keyboard, GlyphKeyboard, alpha);
 				}
 
 				// Pausa: pequena, no canto, e sempre visível (ver PauseIdleAlpha).
@@ -464,6 +532,8 @@ namespace CelesteAndroid.Touch
 		private static readonly uint[] GlyphZ = { 0b11111, 0b00010, 0b00100, 0b01000, 0b11111 };
 		private static readonly uint[] GlyphT = { 0b11111, 0b00100, 0b00100, 0b00100, 0b00100 };
 		private static readonly uint[] GlyphR = { 0b11110, 0b10001, 0b11110, 0b10010, 0b10001 };
+		// Teclado: uma caixa com teclas e a barra de espaço.
+		private static readonly uint[] GlyphKeyboard = { 0b11111, 0b10101, 0b11111, 0b10001, 0b11111 };
 
 		private static Texture2D CreateCircleTexture(GraphicsDevice graphicsDevice, int size)
 		{
