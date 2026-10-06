@@ -21,6 +21,8 @@ namespace CelesteAndroid
 		public const string BackgroundPathKey = "CelesteAndroid.BackgroundPath";
 		public const string TouchControlsKey = "CelesteAndroid.TouchControls";
 		public const string TouchLayoutKey = "CelesteAndroid.TouchLayout";
+		public const string SoftwareKeyboardKey = "CelesteAndroid.SoftwareKeyboard";
+		public const string SoftwareKeyboardVisibleKey = "CelesteAndroid.SoftwareKeyboardVisible";
 
 		/// <summary>Lado do host: publica a configuração lida pelo jogo patcheado.</summary>
 		/// <param name="backgroundPath">Imagem das faixas laterais (opcional; o desktop não usa).</param>
@@ -45,6 +47,27 @@ namespace CelesteAndroid
 			{
 				AppContext.SetData(TouchLayoutKey, touchLayout);
 			}
+		}
+
+		/// <summary>
+		/// Ponte para o teclado do sistema (só o host Android define). O caminho do SDL sozinho
+		/// (<c>TextInputEXT.StartTextInput</c>) pede o teclado, mas em vários aparelhos o sistema
+		/// ignora o pedido implícito — o Android deixa de mostrar o teclado de tela quando acha
+		/// que existe um teclado físico, e um controle Bluetooth conta como um. O host reforça o
+		/// pedido com as flags forçadas e, quando nem isso funciona, o motivo vai para o log e
+		/// para um Toast (sem adb, o jogador não tem como saber o que falhou).
+		/// </summary>
+		public static Action<bool>? SoftwareKeyboard
+		{
+			get => AppContext.GetData(SoftwareKeyboardKey) as Action<bool>;
+			set => AppContext.SetData(SoftwareKeyboardKey, value);
+		}
+
+		/// <summary>O teclado do sistema está visível? Quem responde é o host (o SDL pode achar que não).</summary>
+		public static Func<bool>? SoftwareKeyboardVisible
+		{
+			get => AppContext.GetData(SoftwareKeyboardVisibleKey) as Func<bool>;
+			set => AppContext.SetData(SoftwareKeyboardVisibleKey, value);
 		}
 
 		/// <summary>Lado do jogo: plataforma que o shim do SDL2 reporta.</summary>

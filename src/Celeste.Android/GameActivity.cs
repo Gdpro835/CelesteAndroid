@@ -30,6 +30,9 @@ namespace CelesteAndroid
 		public const string LogTag = "CelesteAndroid";
 		public const string ExtraDriver = "driver";
 
+		// Ponte com o pad para o teclado do sistema (ver SoftwareKeyboard).
+		private SoftwareKeyboard? keyboard;
+
 		// O Java carrega SDL3 e FMOD (o FMOD precisa estar carregado antes do FMOD.init);
 		// FNA3D/FAudio são carregados pelo .NET via DllImport.
 		protected override string[] GetLibraries() => new[] { "SDL3", "fmod", "fmodstudio" };
@@ -39,6 +42,12 @@ namespace CelesteAndroid
 			base.OnCreate(savedInstanceState);
 			// O FMOD no Android precisa do Context para o áudio e para ler arquivos.
 			Org.Fmod.FMOD.Init(this);
+
+			// O pad pede o teclado do sistema por aqui (o caminho do SDL sozinho não abre o teclado
+			// em vários aparelhos — ver SoftwareKeyboard) e pergunta se ele está à vista.
+			keyboard = new SoftwareKeyboard(this);
+			HostConfig.SoftwareKeyboard = keyboard.Set;
+			HostConfig.SoftwareKeyboardVisible = keyboard.IsShown;
 		}
 
 		protected override void OnDestroy()

@@ -11,7 +11,8 @@ namespace CelesteAndroid.Touch
 	/// On-screen pad: an analog stick that walks with the arrow keys plus Z (grab), X (dash),
 	/// C (jump), Escape (pause), Tab (journal) and R (retry) — the keys Celeste ships bound by default. One more
 /// button presses nothing: it opens the device's keyboard (see <see cref="ToggleKeyboard"/>), which is the only
-/// way to type on a phone. Presses are pushed
+/// way to type on a phone; on several devices the system ignores SDL's request, so the Android host
+/// repeats it with forced flags (see HostConfig.SoftwareKeyboard). Presses are pushed
 	/// into SDL's queue and FNA turns them into <c>Keyboard.keys</c> at the start of the next tick
 	/// (see <see cref="SdlInput"/>).
 	///
@@ -292,32 +293,46 @@ namespace CelesteAndroid.Touch
 		/// </summary>
 		private static void ToggleKeyboard()
 		{
+			bool shown = ScreenKeyboardShown();
+
+			// 1) Caminho do SDL: ele cria o campo de texto (que entrega o que for digitado como
+			//    SDL_EVENT_TEXT_INPUT) e pede o teclado ao sistema.
 			try
 			{
-				if (TextInputEXT.IsScreenKeyboardShown())
+				if (shown)
 				{
 					TextInputEXT.StopTextInput();
-					return;
 				}
-
-				if (TextInputEXT.WindowHandle == IntPtr.Zero)
+				else if (TextInputEXT.WindowHandle == IntPtr.Zero)
 				{
 					Warn("a janela do SDL ainda não foi criada");
-					return;
 				}
-
-				SdlInput.EnableScreenKeyboard();
-				TextInputEXT.StartTextInput();
-				// StartTextInput não devolve nada pelo FNA: se o SDL recusou (janela inválida, por
-				// exemplo) o texto continua inativo e o erro fica no SDL_GetError.
-				if (!TextInputEXT.IsTextInputActive())
+				else
 				{
-					Warn("SDL recusou o pedido: " + SdlInput.LastError());
+					SdlInput.EnableScreenKeyboard();
+					TextInputEXT.StartTextInput();
+					// StartTextInput não devolve nada pelo FNA: se o SDL recusou (janela inválida, por
+					// exemplo) o texto continua inativo e o erro fica no SDL_GetError.
+					if (!TextInputEXT.IsTextInputActive())
+					{
+						Warn("SDL recusou o pedido: " + SdlInput.LastError());
+					}
 				}
 			}
 			catch (Exception e)
 			{
 				Warn(e.Message);
+			}
+
+			// 2) O host Android reforça o pedido (flags forçadas: é o que o sistema aceita quando
+			//    acha que existe teclado físico) e é ele que sabe se o teclado subiu.
+			try
+			{
+				HostConfig.SoftwareKeyboard?.Invoke(!shown);
+			}
+			catch (Exception e)
+			{
+				Warn("host: " + e.Message);
 			}
 		}
 
@@ -326,6 +341,19 @@ namespace CelesteAndroid.Touch
 
 		private static bool ScreenKeyboardShown()
 		{
+			// O host responde primeiro: o SDL acha que o teclado não subiu justamente no caso em
+			// que o sistema ignora o pedido dele (e aí o host força).
+			try
+			{
+				if (HostConfig.SoftwareKeyboardVisible is Func<bool> host)
+				{
+					return host();
+				}
+			}
+			catch (Exception)
+			{
+				// Silencioso de propósito: isto roda a cada 250 ms no Update.
+			}
 			try
 			{
 				return TextInputEXT.IsScreenKeyboardShown();
