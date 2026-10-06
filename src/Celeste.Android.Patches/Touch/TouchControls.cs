@@ -8,7 +8,7 @@ namespace CelesteAndroid.Touch
 {
 	/// <summary>
 	/// On-screen pad: an analog stick that walks with the arrow keys plus Z (grab), X (dash),
-	/// C (jump) and Escape (pause) — the keys Celeste ships bound by default. Presses are pushed
+	/// C (jump), Escape (pause), Tab (journal) and R (retry) — the keys Celeste ships bound by default. Presses are pushed
 	/// into SDL's queue and FNA turns them into <c>Keyboard.keys</c> at the start of the next tick
 	/// (see <see cref="SdlInput"/>).
 	///
