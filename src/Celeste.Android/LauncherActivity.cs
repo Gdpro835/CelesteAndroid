@@ -48,6 +48,8 @@ namespace CelesteAndroid
 		private TextView driverToggle = null!;
 		private TextView touchToggle = null!;
 		private TextView layoutLink = null!;
+		private LinearLayout settings = null!;
+		private TextView hint = null!;
 		private FrameLayout root = null!;
 		private View? touchOverlay;
 		private LinearLayout links = null!;
@@ -133,7 +135,11 @@ namespace CelesteAndroid
 			panel = new LinearLayout(this) { Orientation = Orientation.Vertical };
 			panel.SetGravity(GravityFlags.CenterVertical | GravityFlags.Start);
 			panel.SetPadding(Dp(56), Dp(12), Dp(24), Dp(12));
-			root.AddView(panel, new FrameLayout.LayoutParams(Dp(460), ViewGroup.LayoutParams.MatchParent));
+			// 460dp é confortável em tablet, mas estoura a tela de um telefone (~360dp) e o que
+			// passa da borda não pode nem ser tocado: limita à largura visível.
+			int screenWidth = Resources?.DisplayMetrics?.WidthPixels ?? Dp(460);
+			int panelWidth = Math.Min(Dp(460), screenWidth - Dp(16));
+			root.AddView(panel, new FrameLayout.LayoutParams(panelWidth, ViewGroup.LayoutParams.MatchParent));
 
 			// Logo do jogo (art/logo.png → GameArt) ou, sem ele, o nome em texto.
 			int logoId = Resources!.GetIdentifier("celeste_logo", "drawable", PackageName);
@@ -181,15 +187,18 @@ namespace CelesteAndroid
 			layoutLink = LinkText("Layout");
 			layoutLink.Click += (_, _) => OpenTouchLayout();
 			links.AddView(openZip);
-			links.AddView(Text("·", 14, Color.Argb(120, 255, 255, 255), TypefaceStyle.Normal), Margins(left: 10, right: 10));
+			links.AddView(Separator());
 			links.AddView(importSaves);
-			links.AddView(Text("·", 14, Color.Argb(120, 255, 255, 255), TypefaceStyle.Normal), Margins(left: 10, right: 10));
-			links.AddView(driverToggle);
-			links.AddView(Text("·", 14, Color.Argb(120, 255, 255, 255), TypefaceStyle.Normal), Margins(left: 10, right: 10));
-			links.AddView(touchToggle);
-			links.AddView(Text("·", 14, Color.Argb(120, 255, 255, 255), TypefaceStyle.Normal), Margins(left: 10, right: 10));
-			links.AddView(layoutLink);
 			panel.AddView(links, Margins(top: 6, left: 6));
+
+			// Uma linha só não cabe: "Layout" ficava fora da tela e era impossível de tocar.
+			settings = new LinearLayout(this) { Orientation = Orientation.Horizontal };
+			settings.AddView(driverToggle);
+			settings.AddView(Separator());
+			settings.AddView(touchToggle);
+			settings.AddView(Separator());
+			settings.AddView(layoutLink);
+			panel.AddView(settings, Margins(top: 2, left: 6));
 
 			progressBox = new LinearLayout(this) { Orientation = Orientation.Vertical, Visibility = ViewStates.Gone };
 			progressBar = new ProgressBar(this, null, Android.Resource.Attribute.ProgressBarStyleHorizontal) { Max = 1000 };
@@ -200,7 +209,7 @@ namespace CelesteAndroid
 			progressBox.AddView(progressText, Margins(top: 6));
 			panel.AddView(progressBox, Margins(top: 12));
 
-			var hint = Text("Controller recommended", 12, Color.Argb(150, 255, 255, 255), TypefaceStyle.Normal);
+			hint = Text("Controller recommended", 12, Color.Argb(150, 255, 255, 255), TypefaceStyle.Normal);
 			var hintParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent,
 				GravityFlags.Bottom | GravityFlags.End) { RightMargin = Dp(28), BottomMargin = Dp(20) };
 			root.AddView(hint, hintParams);
@@ -256,9 +265,14 @@ namespace CelesteAndroid
 			return view;
 		}
 
+		private TextView Separator() =>
+			Text("·", 14, Color.Argb(120, 255, 255, 255), TypefaceStyle.Normal);
+
 		private TextView LinkText(string text)
 		{
 			var view = Text(text, 14, Accent, TypefaceStyle.Normal);
+			// Sem quebra de linha: "Touch: On" partia em duas linhas e empurrava o resto para fora.
+			view.SetSingleLine(true);
 			view.SetPadding(0, Dp(6), 0, Dp(6));
 			return view;
 		}
@@ -303,6 +317,11 @@ namespace CelesteAndroid
 			importSaves.Enabled = !busy;
 			// A tela é baixa (~360dp): durante a instalação a barra de progresso ocupa o lugar dos links.
 			links.Visibility = busy ? ViewStates.Gone : ViewStates.Visible;
+			settings.Visibility = busy ? ViewStates.Gone : ViewStates.Visible;
+			// "Controller recommended" deixa de fazer sentido com os controles na tela ligados.
+			hint.Visibility = !busy && installed && !LauncherPrefs.TouchControls(this)
+				? ViewStates.Visible
+				: ViewStates.Gone;
 			openFolder.Text = installed ? "Change game files" : "Open game files";
 			if (!busy)
 			{
