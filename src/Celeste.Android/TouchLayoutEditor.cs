@@ -17,6 +17,8 @@ namespace CelesteAndroid
 		private const int Dash = (int)TouchControl.Dash;
 		private const int Grab = (int)TouchControl.Grab;
 		private const int Pause = (int)TouchControl.Pause;
+		private const int Journal = (int)TouchControl.Journal;
+		private const int Retry = (int)TouchControl.Retry;
 
 		private readonly float[] x = new float[TouchLayoutSpec.Count];
 		private readonly float[] y = new float[TouchLayoutSpec.Count];
@@ -126,7 +128,6 @@ namespace CelesteAndroid
 			canvas.DrawRect(game.Left, game.Top, game.Right, game.Bottom, background);
 
 			float density = Resources?.DisplayMetrics?.Density ?? 1f;
-			ink.TextSize = game.Height() * 0.075f;
 
 			// Manche: anel + bolinha, para o formato ser reconhecível sem legenda.
 			Vector2Like stick = Center(Stick);
@@ -139,6 +140,8 @@ namespace CelesteAndroid
 			DrawButton(canvas, Dash, "X");
 			DrawButton(canvas, Grab, "Z");
 			DrawPause(canvas);
+			DrawButton(canvas, Journal, "T");
+			DrawButton(canvas, Retry, "R");
 		}
 
 		private void DrawButton(Canvas canvas, int index, string label)
@@ -146,6 +149,8 @@ namespace CelesteAndroid
 			Vector2Like center = Center(index);
 			float radius = Radius(index);
 			canvas.DrawCircle(center.X, center.Y, radius, dragging == index ? selected : fill);
+			// O texto acompanha o raio: os botões menores (pausa, T, R) não caberiam com um tamanho fixo.
+			ink.TextSize = radius * 1.1f;
 			canvas.DrawText(label, center.X, center.Y - (ink.Descent() + ink.Ascent()) / 2f, ink);
 		}
 

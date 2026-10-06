@@ -58,11 +58,13 @@ namespace CelesteAndroid.Touch
 			Dash = (int)TouchControl.Dash,
 			Grab = (int)TouchControl.Grab,
 			Pause = (int)TouchControl.Pause,
+			Journal = (int)TouchControl.Journal,
+			Retry = (int)TouchControl.Retry,
 		}
 
 		private static readonly GameKey[] AllKeys =
 		{
-			GameKey.C, GameKey.X, GameKey.Z, GameKey.Escape,
+			GameKey.C, GameKey.X, GameKey.Z, GameKey.Escape, GameKey.Tab, GameKey.R,
 			GameKey.Left, GameKey.Right, GameKey.Up, GameKey.Down,
 		};
 
@@ -70,7 +72,8 @@ namespace CelesteAndroid.Touch
 
 		private readonly List<SdlInput.Finger> fingers = new();
 		private readonly Grab[] grabs = new Grab[MaxFingers];
-		private readonly bool[] keyDown = new bool[8];
+		// Um estado por GameKey: a lista cresce (Tab, R) e um tamanho fixo estouraria aqui.
+		private readonly bool[] keyDown = new bool[Enum.GetValues<GameKey>().Length];
 		private readonly bool[] directionDown = new bool[4];
 		private int grabCount;
 
@@ -247,6 +250,8 @@ namespace CelesteAndroid.Touch
 			SetKey(GameKey.X, FindControl(Control.Dash) >= 0);
 			SetKey(GameKey.Z, FindControl(Control.Grab) >= 0);
 			SetKey(GameKey.Escape, FindControl(Control.Pause) >= 0);
+			SetKey(GameKey.Tab, FindControl(Control.Journal) >= 0);
+			SetKey(GameKey.R, FindControl(Control.Retry) >= 0);
 		}
 
 		private void SetDirection(int index, GameKey key, float value, float on, float off)
@@ -377,6 +382,8 @@ namespace CelesteAndroid.Touch
 					DrawButton(spriteBatch, layout, TouchControl.Jump, GlyphC, alpha);
 					DrawButton(spriteBatch, layout, TouchControl.Dash, GlyphX, alpha);
 					DrawButton(spriteBatch, layout, TouchControl.Grab, GlyphZ, alpha);
+					DrawButton(spriteBatch, layout, TouchControl.Journal, GlyphT, alpha);
+					DrawButton(spriteBatch, layout, TouchControl.Retry, GlyphR, alpha);
 				}
 
 				// Pausa: pequena, no canto, e sempre visível (ver PauseIdleAlpha).
@@ -455,6 +462,8 @@ namespace CelesteAndroid.Touch
 		private static readonly uint[] GlyphC = { 0b01111, 0b10000, 0b10000, 0b10000, 0b01111 };
 		private static readonly uint[] GlyphX = { 0b10001, 0b01010, 0b00100, 0b01010, 0b10001 };
 		private static readonly uint[] GlyphZ = { 0b11111, 0b00010, 0b00100, 0b01000, 0b11111 };
+		private static readonly uint[] GlyphT = { 0b11111, 0b00100, 0b00100, 0b00100, 0b00100 };
+		private static readonly uint[] GlyphR = { 0b11110, 0b10001, 0b11110, 0b10010, 0b10001 };
 
 		private static Texture2D CreateCircleTexture(GraphicsDevice graphicsDevice, int size)
 		{
@@ -541,6 +550,8 @@ namespace CelesteAndroid.Touch
 				if (Hits(point, TouchControl.Jump)) return Control.Jump;
 				if (Hits(point, TouchControl.Dash)) return Control.Dash;
 				if (Hits(point, TouchControl.Grab)) return Control.Grab;
+				if (Hits(point, TouchControl.Journal)) return Control.Journal;
+				if (Hits(point, TouchControl.Retry)) return Control.Retry;
 
 				// O manche agarra dentro de uma caixa em volta do lugar configurado e flutua a partir daí.
 				if (!stickTaken)

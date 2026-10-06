@@ -74,6 +74,8 @@ namespace CelesteAndroid
 		Dash = 2,
 		Grab = 3,
 		Pause = 4,
+		Journal = 5,
+		Retry = 6,
 	}
 
 	/// <summary>Posição e tamanho de um controle, normalizados pela área do jogo (0..1).</summary>
@@ -105,7 +107,7 @@ namespace CelesteAndroid
 	/// </summary>
 	public sealed class TouchLayoutSpec
 	{
-		public const int Count = 5;
+		public const int Count = 7;
 		private const string Version = "v1";
 		private const float MinScale = 0.6f;
 		private const float MaxScale = 1.6f;
@@ -130,7 +132,10 @@ namespace CelesteAndroid
 
 		public TouchControlSpec this[int index] => controls[index];
 
-		/// <summary>Layout de fábrica: manche à esquerda, Z/X/C à direita, pausa no canto.</summary>
+		/// <summary>
+		/// Layout de fábrica: manche à esquerda, Z/X/C à direita, e a coluna de botões secundários
+		/// (pausa, journal, retry) no canto superior direito, longe do trio de ação.
+		/// </summary>
 		public static TouchLayoutSpec Default { get; } = new TouchLayoutSpec(
 			new[]
 			{
@@ -139,6 +144,8 @@ namespace CelesteAndroid
 				new TouchControlSpec(0.822f, 0.889f, 0.082f), // Dash (X)
 				new TouchControlSpec(0.938f, 0.684f, 0.082f), // Grab (Z)
 				new TouchControlSpec(0.952f, 0.085f, 0.050f), // Pause
+				new TouchControlSpec(0.952f, 0.235f, 0.062f), // Journal (Tab)
+				new TouchControlSpec(0.952f, 0.400f, 0.062f), // Retry (R)
 			},
 			1f
 		);
@@ -171,14 +178,23 @@ namespace CelesteAndroid
 			}
 
 			string[] parts = text!.Split(';');
-			if (parts.Length != Count + 2 || parts[0] != Version)
+			if (parts.Length < 3 || parts.Length > Count + 2 || parts[0] != Version)
 			{
 				return false;
 			}
 
+			// Um texto gravado antes de existirem mais controles tem menos campos: os que faltam
+			// vêm do layout de fábrica, para uma posição já salva não se perder quando uma tecla
+			// nova aparece (o último campo é sempre o Scale).
+			int written = parts.Length - 2;
 			var values = new TouchControlSpec[Count];
 			for (int i = 0; i < Count; i++)
 			{
+				if (i >= written)
+				{
+					values[i] = Default[i];
+					continue;
+				}
 				string[] fields = parts[i + 1].Split(',');
 				if (fields.Length != 3
 					|| !TryFloat(fields[0], out float x)
@@ -189,7 +205,7 @@ namespace CelesteAndroid
 				}
 				values[i] = new TouchControlSpec(Clamp01(x), Clamp01(y), Math.Min(Clamp01(size), MaxSize));
 			}
-			if (!TryFloat(parts[Count + 1], out float scale))
+			if (!TryFloat(parts[parts.Length - 1], out float scale))
 			{
 				return false;
 			}
