@@ -93,7 +93,7 @@ The patches are small and focused: a Steamworks stub, SDL2 → SDL3 shims, `GetE
 | ✅ | Import from a folder or `.zip`, patching on the device (re-patched automatically when a newer APK changes the patch) |
 | ✅ | **On-screen touch controls**: stick + Z / X / C / Tab / R (+ always-visible pause and a button that opens the device keyboard), positions/size editable in the launcher. Reads every touch device SDL reports, so FNA's `TouchPanel` limitation doesn't get in the way |
 | ✅ | Importing `.celeste` saves (kept by Android's cloud backup; the imported game files aren't) |
-| 🚧 | Everest / mods |
+| 🚧 | Everest / mods — not yet: what it would take, stage by stage, is written up in [docs/EVEREST.md](docs/EVEREST.md) |
 
 Tested on one device so far. Reports from other phones (especially Mali/Exynos/Tensor GPUs) are very welcome.
 

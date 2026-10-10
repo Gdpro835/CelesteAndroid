@@ -135,6 +135,6 @@ MonoMod (and Mono.Cecil) run inside the launcher. The things that were needed:
 
 ## Roadmap
 
-- Everest (mod loader) support
+- Everest (mod loader) support — feasibility study, gap analysis and staged plan: [EVEREST.md](EVEREST.md)
 - More devices tested (Mali, Xclipse, Tensor)
 - On-screen controls: rebindable/analog variants (today they press the game's default keyboard keys), and a "typing" path for the journal
