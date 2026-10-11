@@ -34,6 +34,7 @@ namespace CelesteAndroid
 		public static void Install(
 			string gameDir,
 			string androidFnaPath,
+			string frameworkReferenceDir,
 			string workspace,
 			string tempDir,
 			Action<string, float> progress)
@@ -42,7 +43,7 @@ namespace CelesteAndroid
 			try
 			{
 				Environment.CurrentDirectory = gameDir;
-				InstallCore(gameDir, androidFnaPath, workspace, tempDir, progress);
+				InstallCore(gameDir, androidFnaPath, frameworkReferenceDir, workspace, tempDir, progress);
 			}
 			finally
 			{
@@ -56,6 +57,7 @@ namespace CelesteAndroid
 		private static void InstallCore(
 			string gameDir,
 			string androidFnaPath,
+			string frameworkReferenceDir,
 			string workspace,
 			string tempDir,
 			Action<string, float> progress)
@@ -70,6 +72,8 @@ namespace CelesteAndroid
 				throw new InstallException("This main.zip is incomplete: Celeste.Mod.mm.dll or everest-lib is missing.");
 			if (!File.Exists(androidFnaPath))
 				throw new InstallException("The Android FNA assembly needed to prepare Everest is missing from the APK.");
+			if (!File.Exists(Path.Combine(frameworkReferenceDir, "mscorlib.dll")))
+				throw new InstallException("The APK is missing the mscorlib reference assembly needed to convert the original game for Everest.");
 
 			// Match Program.Main's normal (non-headless) mode for MonoModRules without entering its desktop setup path.
 			AppDomain.CurrentDomain.SetData("Everest_IsHeadless", false);
@@ -111,6 +115,11 @@ namespace CelesteAndroid
 				if (File.Exists(path))
 					File.Delete(path);
 			}
+
+			// NETCoreifier's Cecil resolver runs on Android, where SDK facades aren't exposed as
+			// physical files. Supply mscorlib (and its System.Runtime facade when available) in
+			// both search roots before converting the original .NET Framework executable.
+			InstallFrameworkResolverReferences(gameDir, originalDir, frameworkReferenceDir);
 
 			// Normalize tool DLLs into the game root (some main.zip builds place them under everest-lib).
 			// The isolated load context below loads the same files that upstream DepCalls expects in PathGame.
@@ -202,6 +211,24 @@ namespace CelesteAndroid
 				loadContext.Unload();
 				TryDeleteDirectory(workspace);
 				TryDeleteDirectory(tempDir);
+			}
+		}
+
+		private static void InstallFrameworkResolverReferences(string gameDir, string originalDir, string referenceDir)
+		{
+			string mscorlib = Path.Combine(referenceDir, "mscorlib.dll");
+			if (!File.Exists(mscorlib))
+				throw new InstallException("The APK is missing the mscorlib reference assembly needed to convert the original game for Everest.");
+
+			foreach (string name in new[] { "mscorlib.dll", "System.Runtime.dll" })
+			{
+				string source = Path.Combine(referenceDir, name);
+				if (!File.Exists(source))
+					continue;
+				File.Copy(source, Path.Combine(gameDir, name), overwrite: true);
+				string originalReference = Path.Combine(originalDir, name);
+				if (!File.Exists(originalReference))
+					File.Copy(source, originalReference);
 			}
 		}
 

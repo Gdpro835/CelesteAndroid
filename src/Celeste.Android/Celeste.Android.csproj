@@ -102,7 +102,8 @@
 	<Target Name="_AddPatcherAssets" BeforeTargets="_ComputeAndroidAssetsPaths">
 		<ItemGroup>
 			<AndroidAsset Include="@(CelestePatchModule)" LogicalName="patcher/%(Filename)%(Extension)" />
-			<AndroidAsset Include="@(ReferencePath)" Condition="'%(Filename)' == 'FNA' or '%(Filename)' == 'Steamworks.NET' or '%(Filename)' == 'MonoMod.Patcher'"
+			<!-- MiniInstaller's Cecil resolver needs physical facade DLLs for legacy mscorlib references. -->
+			<AndroidAsset Include="@(ReferencePath)" Condition="'%(Filename)' == 'FNA' or '%(Filename)' == 'Steamworks.NET' or '%(Filename)' == 'MonoMod.Patcher' or '%(Filename)' == 'mscorlib' or '%(Filename)' == 'System.Runtime'"
 				LogicalName="patcher/%(Filename)%(Extension)" />
 		</ItemGroup>
 	</Target>

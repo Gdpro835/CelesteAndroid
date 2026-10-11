@@ -399,7 +399,13 @@ namespace CelesteAndroid
 
 				string toolRoot = Path.Combine(context.CacheDir!.AbsolutePath, "everest-miniinstaller");
 				string tempRoot = Path.Combine(context.CacheDir!.AbsolutePath, "everest-minitmp");
-				EverestMiniInstaller.Install(gameDir, Path.Combine(patcherDir, "FNA.dll"), toolRoot, tempRoot, progress);
+				EverestMiniInstaller.Install(
+					gameDir,
+					Path.Combine(patcherDir, "FNA.dll"),
+					patcherDir,
+					toolRoot,
+					tempRoot,
+					progress);
 
 				everestTag = release.Tag;
 				everestSha256 = archiveSha256;
