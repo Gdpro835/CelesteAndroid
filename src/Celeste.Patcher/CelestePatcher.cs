@@ -11,18 +11,18 @@ namespace CelesteAndroid.Patcher
 	/// </summary>
 	public static class CelestePatcher
 	{
-		/// <param name="celesteExe">Celeste.exe original (build FNA).</param>
+		/// <param name="inputAssembly">A managed Celeste assembly: the original Celeste.exe or the intermediate Everest Celeste.dll.</param>
 		/// <param name="modAssembly">Celeste.Android.mm.dll.</param>
 		/// <param name="outputDll">Destino do Celeste.dll patcheado.</param>
 		/// <param name="dependencyDirs">Onde achar FNA.dll, Steamworks.NET.dll etc. (os nossos, não os do jogo).</param>
-		public static void Patch(string celesteExe, string modAssembly, string outputDll, IEnumerable<string> dependencyDirs, Action<string>? log = null)
+		public static void Patch(string inputAssembly, string modAssembly, string outputDll, IEnumerable<string> dependencyDirs, Action<string>? log = null)
 		{
 			log ??= Console.WriteLine;
 			Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outputDll))!);
 
 			using LoggingModder modder = new(log)
 			{
-				InputPath = celesteExe,
+				InputPath = inputAssembly,
 				OutputPath = outputDll,
 				// Deferred: o Cecil só resolve o que usa. No Android não há mscorlib/System.Runtime como
 				// arquivos, e o modo Immediate tenta resolver os tipos de todos os atributos.

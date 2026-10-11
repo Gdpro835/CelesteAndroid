@@ -15,6 +15,9 @@ namespace CelesteAndroid
 		/// <summary>Driver gráfico forçado ("OpenGL" para OpenGL ES; vazio = Vulkan).</summary>
 		public const string DriverKey = "driver";
 
+		/// <summary>O próximo import deve instalar o último stable do Everest.</summary>
+		public const string EverestKey = "everest";
+
 		/// <summary>Controles na tela ("1"/"0"). Ligados por padrão.</summary>
 		public const string TouchKey = "touch";
 
@@ -28,6 +31,11 @@ namespace CelesteAndroid
 
 		public static void SetDriver(Context context, string driver) =>
 			Get(context).Edit()!.PutString(DriverKey, driver)!.Apply();
+
+		public static bool Everest(Context context) => Get(context).GetBoolean(EverestKey, false);
+
+		public static void SetEverest(Context context, bool enabled) =>
+			Get(context).Edit()!.PutBoolean(EverestKey, enabled)!.Apply();
 
 		/// <summary>Os controles de toque vêm ligados: sem eles o jogo não tem como ser jogado
 		/// no celular sem um controle conectado.</summary>

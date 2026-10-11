@@ -51,7 +51,7 @@ The workflow downloads what the repository can't ship; the URLs live in reposito
 
 | Secret | Required | What it points to |
 |---|---|---|
-| `CELESTE_GAME_URL` | yes | Archive with `Celeste.exe` (FNA build) — the patch module compiles against it. Add `Content/` to use the personal variants. |
+| `CELESTE_GAME_URL` | yes | Private archive containing `Celeste.exe` from the FNA build — the patch module compiles against it. Add `Content/` for personal variants and `FNA.dll` for `personal-embedded` builds that should support Everest. The workflow extracts/copies it only on the ephemeral runner; never commit the game files or secret value. |
 | `FMOD_ANDROID_URL` | yes | The FMOD Engine 1.10.14 Android package (the same `.tar.gz` you download from fmod.com by hand: see [docs/BUILDING.md](../BUILDING.md) section 3) kept somewhere private: `libfmod.so`, `libfmodstudio.so` and `fmod.jar` are picked out of it by the workflow. |
 | `NATIVES_ANDROID_URL` | no | Archive with the prebuilt `libSDL3.so`, `libFNA3D.so`, `libFAudio.so`. Without it the workflow installs NDK r27d and builds them (~10 min). |
 | `ASSETS_TOKEN` | no | Bearer token for the downloads above when they need authentication. |

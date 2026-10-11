@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Android.App;
 using Android.Content.PM;
 using Android.OS;
@@ -61,27 +62,27 @@ namespace CelesteAndroid
 		// Chamado pelo SDL na thread "SDLThread" depois que a superfície existe; substitui o SDL_main nativo.
 		protected override void Main()
 		{
-			// O FNA/FNA3D loga no stderr, que no Android não vai para o logcat.
-			FNALoggerEXT.LogInfo = msg => Log.Info(LogTag, msg);
-			FNALoggerEXT.LogWarn = msg => Log.Warn(LogTag, msg);
-			FNALoggerEXT.LogError = msg => Log.Error(LogTag, msg);
-
-			// "OpenGL" força o driver GLES; o padrão é Vulkan (SDL_GPU).
-			string? driver = Intent?.GetStringExtra(ExtraDriver);
-			if (!string.IsNullOrEmpty(driver))
-				SDL3.SDL.SDL_SetHint("FNA3D_FORCE_DRIVER", driver);
-
 			try
 			{
+				// In Everest mode, load the MiniInstaller-patched Android FNA before any statically
+				// referenced FNA type is JIT-compiled. Vanilla continues using the APK assembly.
+				if (GameInstaller.IsInstalled(this) && GameInstaller.IsEverestInstalled(this))
+					CelesteLauncher.PreloadEverestRuntime(this);
+				ConfigureFnaLogging();
+
+				// "OpenGL" força o driver GLES; o padrão é Vulkan (SDL_GPU).
+				string? driver = Intent?.GetStringExtra(ExtraDriver);
+				if (!string.IsNullOrEmpty(driver))
+					SDL3.SDL.SDL_SetHint("FNA3D_FORCE_DRIVER", driver);
+
 				if (GameInstaller.IsInstalled(this))
 				{
 					CelesteLauncher.Run(this);
 				}
 				else
 				{
-					Log.Warn(LogTag, "Jogo não instalado; rodando HelloGame.");
-					using HelloGame game = new();
-					game.Run();
+					Log.Warn(LogTag, "Game not installed; running HelloGame.");
+					RunHelloGame();
 				}
 			}
 			catch (Exception e)
@@ -89,6 +90,22 @@ namespace CelesteAndroid
 				Log.Error(LogTag, (e is TargetInvocationException { InnerException: not null } tie ? tie.InnerException! : e).ToString());
 				throw;
 			}
+		}
+
+		[MethodImpl(MethodImplOptions.NoInlining)]
+		private static void RunHelloGame()
+		{
+			using HelloGame game = new();
+			game.Run();
+		}
+
+		[MethodImpl(MethodImplOptions.NoInlining)]
+		private static void ConfigureFnaLogging()
+		{
+			// O FNA/FNA3D loga no stderr, que no Android não vai para o logcat.
+			FNALoggerEXT.LogInfo = msg => Log.Info(LogTag, msg);
+			FNALoggerEXT.LogWarn = msg => Log.Warn(LogTag, msg);
+			FNALoggerEXT.LogError = msg => Log.Error(LogTag, msg);
 		}
 	}
 }

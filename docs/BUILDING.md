@@ -44,6 +44,8 @@ These are **not** in the repository and must never be committed (they're in `.gi
 | `art/icon.png` (or `.jpg`) | *(optional)* square image for the app icon, used by every build. Without it, personal builds crop the key art and public builds use the original mountain icon. |
 | `art/logo.png` | *(optional, personal builds)* logo shown in the launcher instead of the text title |
 
+On GitHub Actions, provide the Celeste archive through the repository secret `CELESTE_GAME_URL`; the workflow extracts it only in the ephemeral runner and does not commit the files. Never put game binaries or the secret value in Git.
+
 Why 1.10.14: FMOD Studio banks are tied to the runtime's version, so Celeste's `.bank` files (built with Studio 1.10) only load under a 1.10.x runtime — a 1.11/2.x `libfmod.so` would fail to load them; the game's C# FMOD wrapper matches that API too.
 
 ## 4. Native libraries
@@ -61,6 +63,8 @@ scripts\build-release.ps1                  # public APK (no official art) -> out
 scripts\build-release.ps1 -Personal        # official icon/logo from YOUR game files (don't share)
 scripts\build-release.ps1 -Personal -EmbedGame   # also bundles your game (~860 MB; don't share)
 ```
+
+The launcher has an optional, experimental Everest mode. Enable it before importing a game; each install requests GitHub's latest stable release and downloads a fresh `main.zip`. It needs internet on the Android device, several GB of free storage for transactional staging, and is not yet verified on a device. `-EmbedGame` APKs include top-level game DLLs and `.config` files (including `FNA.dll` when present) for the optional Everest setup; the Actions build requires `FNA.dll` for `personal-embedded`.
 
 Signing: if `%USERPROFILE%\.celeste-android\keystore.env` exists it's used (`CELESTE_KEYSTORE`, `CELESTE_KEYSTORE_ALIAS`, `CELESTE_KEYSTORE_PASS`); otherwise the debug key is used. Keep the same key across builds, or Android won't let you update without uninstalling (which deletes saves).
 

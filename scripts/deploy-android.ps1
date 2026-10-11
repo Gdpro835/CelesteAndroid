@@ -36,9 +36,22 @@ $tmp = '/data/local/tmp/celeste'
 $module = Get-ChildItem "$root\src\Celeste.Android.Patches\bin\Debug" -Recurse -Filter 'Celeste.Android.mm.dll' |
 	Select-Object -First 1
 if (-not $module) { throw 'Celeste.Android.mm.dll não encontrado (compile o Celeste.Android.Patches).' }
+$gameExe = Join-Path $root 'Celeste\Celeste.exe'
+if (-not (Test-Path $gameExe)) { throw "Celeste.exe not found at $gameExe." }
+$moduleHash = (Get-FileHash $module.FullName -Algorithm SHA256).Hash.Substring(0, 16)
+$sourceHash = (Get-FileHash $gameExe -Algorithm SHA256).Hash.Substring(0, 16)
+$fingerprint = "v2|vanilla|$moduleHash|$sourceHash"
 $stampFile = Join-Path $env:TEMP 'celeste-patch.stamp'
-(Get-FileHash $module.FullName -Algorithm SHA256).Hash.Substring(0, 16) | Set-Content $stampFile -NoNewline -Encoding ASCII
+$fingerprintBytes = [Text.Encoding]::UTF8.GetBytes($fingerprint)
+$fingerprintFile = Join-Path $env:TEMP 'celeste-patch-fingerprint.tmp'
+[IO.File]::WriteAllBytes($fingerprintFile, $fingerprintBytes)
+$stamp = (Get-FileHash $fingerprintFile -Algorithm SHA256).Hash.Substring(0, 16)
+Set-Content $stampFile $stamp -NoNewline -Encoding ASCII
+$manifestFile = Join-Path $env:TEMP 'celeste-install.json'
+Set-Content $manifestFile '{"Schema":1,"Mode":"vanilla"}' -NoNewline -Encoding ASCII
+Remove-Item $fingerprintFile -Force
 & $adb push $stampFile "$tmp/patched/patch.stamp" | Out-Host
+& $adb push $manifestFile "$tmp/install.json" | Out-Host
 if ($Content) {
 	& $adb shell "mkdir -p $tmp/Celeste" | Out-Host
 	& $adb push "$root\Celeste\Content" "$tmp/Celeste/" | Out-Host

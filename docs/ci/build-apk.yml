@@ -6,9 +6,10 @@
 # The repository can't ship the files below, so they come from repository secrets
 # (Settings > Secrets and variables > Actions):
 #
-#   CELESTE_GAME_URL      required. .zip/.tar.gz (or a direct link) with Celeste.exe, the FNA
-#                         build: the patch module compiles against it. Include Content/ as well
-#                         if you want the personal variants.
+#   CELESTE_GAME_URL      required. .zip/.tar.gz (or a direct link) with Celeste.exe from the FNA
+#                         build. Include Content/ for personal variants and FNA.dll for
+#                         personal-embedded (which enables Everest on the bundled copy). The
+#                         workflow uses only the ephemeral runner; never commit the game or secret.
 #   FMOD_ANDROID_URL      required. Archive with libfmod.so, libfmodstudio.so and fmod.jar from
 #                         the FMOD Engine 1.10.14 Android package.
 #   NATIVES_ANDROID_URL   optional. Archive with libSDL3.so, libFNA3D.so and libFAudio.so already
@@ -118,8 +119,8 @@ jobs:
             Write-Warning "platforms/android-36 is missing from $sdk."
           }
 
-      # Everything proprietary enters the build here: the game (only Celeste.exe is required, the
-      # patch module compiles against it), FMOD and, when you have them, the prebuilt natives.
+      # Everything proprietary enters the build here: the user's game files, FMOD and, when
+      # provided, the prebuilt native libraries. They stay in the ephemeral runner workspace.
       - name: Files that aren't in the repository
         shell: pwsh
         run: |
@@ -180,8 +181,17 @@ jobs:
           $exe = Get-ChildItem $game -Recurse -File -Filter 'Celeste.exe' | Select-Object -First 1
           if (-not $exe) { throw "CELESTE_GAME_URL must contain Celeste.exe (the FNA build)." }
           New-Item -ItemType Directory -Force 'Celeste' | Out-Null
+          $gameRoot = $exe.DirectoryName
           Copy-Item $exe.FullName 'Celeste/Celeste.exe' -Force
-          $content = Get-ChildItem $game -Recurse -Directory -Filter 'Content' |
+          $fna = Get-ChildItem $gameRoot -File -Filter 'FNA.dll' | Select-Object -First 1
+          if ($fna) { Copy-Item $fna.FullName 'Celeste/FNA.dll' -Force }
+          elseif ($env:VARIANT -eq 'personal-embedded') { throw 'The embedded game build needs FNA.dll for the optional Everest install mode.' }
+          if ($env:VARIANT -eq 'personal-embedded') {
+            Get-ChildItem $gameRoot -File | Where-Object { $_.Extension -in '.dll', '.config' } | ForEach-Object {
+              Copy-Item $_.FullName (Join-Path 'Celeste' $_.Name) -Force
+            }
+          }
+          $content = Get-ChildItem $gameRoot -Recurse -Directory -Filter 'Content' |
             Sort-Object { $_.FullName.Length } | Select-Object -First 1
           if ($content) {
             if (Test-Path 'Celeste/Content') { Remove-Item -Recurse -Force 'Celeste/Content' }

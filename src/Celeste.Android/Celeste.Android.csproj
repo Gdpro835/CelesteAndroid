@@ -68,6 +68,13 @@
 		<AndroidAsset Include="$(CelesteGameDir)Celeste.exe" LogicalName="game/Celeste.exe" />
 		<AndroidAsset Include="$(CelesteGameDir)Content/**/*" LogicalName="game/Content/%(RecursiveDir)%(Filename)%(Extension)" />
 	</ItemGroup>
+	<ItemGroup Condition="'$(EmbedGame)' == 'true'">
+		<!-- Bundle root managed dependencies for Everest MiniInstaller; exclude known desktop native DLLs. -->
+		<AndroidAsset Include="$(CelesteGameDir)*.dll"
+			Exclude="$(CelesteGameDir)fmod.dll;$(CelesteGameDir)fmodstudio.dll;$(CelesteGameDir)CSteamworks.dll;$(CelesteGameDir)steam_api.dll;$(CelesteGameDir)FNA3D.dll;$(CelesteGameDir)SDL2.dll"
+			LogicalName="game/%(Filename)%(Extension)" />
+		<AndroidAsset Include="$(CelesteGameDir)*.config" LogicalName="game/%(Filename)%(Extension)" />
+	</ItemGroup>
 	<ItemGroup>
 		<ProjectReference Include="../../external/FNA/FNA.Core.csproj" />
 		<ProjectReference Include="../Steamworks.NET/Steamworks.NET.csproj" />

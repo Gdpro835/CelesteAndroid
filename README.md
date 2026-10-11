@@ -13,6 +13,7 @@ CelesteAndroid is a launcher + runtime that takes the files of the Celeste PC ve
 - **Vulkan by default** (SDL_GPU), with OpenGL ES as a fallback you can pick in the launcher.
 - **Full audio**: FMOD Studio 1.10.14, the same version the game's sound banks were built with.
 - **Launcher**: pick your game folder or `.zip` and the app copies it, patches it and gets it ready to play.
+- **Optional Everest install (experimental)**: switch Everest on before importing; each install fetches the latest stable `main.zip` from GitHub, then the launcher can import mod `.zip` files into `Mods/`. The vanilla path stays the default and requires no Everest download.
 - **Touch controls**: an on-screen stick plus **Z** (grab), **X** (dash), **C** (jump), **Tab** (journal), **R** (retry), a pause button that never hides and a keyboard button that opens the device keyboard (the only way to type on a phone; what you type is turned into real key presses, which is what the game reads — Cyrillic included, mapped onto the same physical keys a Russian keyboard uses). They press the keys the game has bound by default, fade out when idle and can be turned off in the launcher (they work alongside a controller). **Layout** in the launcher opens an editor where you drag each control where you want it and change its size; "Left-handed" mirrors everything.
 - **Bring your saves**: *Import saves* copies your `.celeste` save files (e.g. the `Saves` folder from your PC) into the game.
 - **Wide screens**: the game keeps its native 16:9 image and the side bars show a blurred version of the game's key art instead of plain black.
@@ -23,7 +24,7 @@ CelesteAndroid is a launcher + runtime that takes the files of the Celeste PC ve
 | | |
 |---|---|
 | Device | Android 8.0+ (API 26), **ARM64** (arm64-v8a) |
-| Storage | ~1.2 GB free (the game's `Content` folder is ~1.1 GB) |
+| Storage | ~1.2 GB free for vanilla; allow several GB during an Everest install/reinstall (staging keeps the old copy until commit) |
 | Game | **Celeste for PC, FNA build** (see below) |
 | Input | A game controller (Bluetooth or USB) **or** the on-screen touch controls. |
 
@@ -42,7 +43,10 @@ Tested with Celeste **1.4.0.0**.
 1. Download `CelesteAndroid-<version>.apk` from [Releases](../../releases) and install it.
 2. Copy your Celeste folder (or the itch.io `.zip`) to your phone, for example to `Download/`.
 3. Open **Celeste** and tap **Open game files** (or **Import .zip**) and select it.
-4. Wait for the import (copy + patch, about 1–2 minutes), then tap **PLAY**.
+4. Optional: tap **Everest** before the import. The first and every later install with it enabled checks GitHub for the latest stable release and downloads a fresh `main.zip`; an internet connection is required. After installation, **Import mod .zip** copies a mod into Everest's `Mods/` folder.
+5. Wait for the import (copy + patch; Everest takes longer), then tap **PLAY**.
+
+Everest installation is experimental and has not yet been verified on a device. If it fails, the existing install remains active; switch Everest off and import again to keep playing vanilla.
 
 Your saves live in the app's private storage, and uninstalling the app deletes them. To bring your PC progress over, copy the `Saves` folder from your PC game folder to your phone and use **Import saves**. Your current saves are backed up to `Backups/` first. Android's cloud backup only takes the saves and the launcher settings, never the ~1.1 GB of imported game files (they would blow the backup quota and take the saves with them) — so keep your PC copy around.
 
@@ -50,7 +54,7 @@ Updating the app doesn't require importing again: if the new APK ships a newer p
 
 ## Building from source
 
-Short version (Windows; see [docs/BUILDING.md](docs/BUILDING.md) for details):
+Short version (Windows; see [docs/BUILDING.md](docs/BUILDING.md) for details). CI can receive your private game archive through the GitHub Actions secret `CELESTE_GAME_URL`; the workflow extracts it only on the runner. Never add the game or secret value to Git.
 
 ```powershell
 git clone --recursive https://github.com/BelmanteGu/CelesteAndroid
@@ -93,7 +97,7 @@ The patches are small and focused: a Steamworks stub, SDL2 → SDL3 shims, `GetE
 | ✅ | Import from a folder or `.zip`, patching on the device (re-patched automatically when a newer APK changes the patch) |
 | ✅ | **On-screen touch controls**: stick + Z / X / C / Tab / R (+ always-visible pause and a button that opens the device keyboard), positions/size editable in the launcher. Reads every touch device SDL reports, so FNA's `TouchPanel` limitation doesn't get in the way |
 | ✅ | Importing `.celeste` saves (kept by Android's cloud backup; the imported game files aren't) |
-| 🚧 | Everest / mods |
+| 🧪 | Optional latest-stable Everest install and mod ZIP import are implemented; device/runtime verification is still pending |
 
 Tested on one device so far. Reports from other phones (especially Mali/Exynos/Tensor GPUs) are very welcome.
 

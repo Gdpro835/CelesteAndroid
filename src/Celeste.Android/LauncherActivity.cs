@@ -34,6 +34,7 @@ namespace CelesteAndroid
 		private const int RequestFolder = 1;
 		private const int RequestZip = 2;
 		private const int RequestSaves = 3;
+		private const int RequestMod = 4;
 
 		private static readonly Color Night = Color.ParseColor("#120C22");
 		private static readonly Color Accent = Color.ParseColor("#F2B8D8");
@@ -48,7 +49,11 @@ namespace CelesteAndroid
 		private TextView driverToggle = null!;
 		private TextView touchToggle = null!;
 		private TextView layoutLink = null!;
+		private TextView everestToggle = null!;
+		private TextView everestModSeparator = null!;
+		private TextView everestMods = null!;
 		private LinearLayout settings = null!;
+		private LinearLayout everestRow = null!;
 		private TextView hint = null!;
 		private FrameLayout root = null!;
 		private View? touchOverlay;
@@ -89,16 +94,21 @@ namespace CelesteAndroid
 
 			// Desenvolvimento: arquivos já copiados por scripts/deploy-android.ps1; só patch + fundo.
 			// adb shell am start -n org.celesteandroid.celeste/.LauncherActivity --ez repatch true
-			if (!busy && Intent!.GetBooleanExtra("repatch", false))
-			{
-				Intent.RemoveExtra("repatch");
-				RunInstall(_ => { });
-			}
-			// APK pessoal: o jogo já vem dentro do APK; instala sozinho na primeira abertura.
-			else if (!busy && !GameInstaller.IsInstalled(this) && GameInstaller.HasEmbeddedGame(this))
-			{
-				RunInstall(installer => installer.ImportEmbedded());
-			}
+				if (!busy && Intent!.GetBooleanExtra("repatch", false))
+				{
+					Intent.RemoveExtra("repatch");
+					RunJob(installer =>
+					{
+						Repatch(installer);
+						RunOnUiThread(LoadArt);
+						return "✓  Game repatched for this build";
+					});
+				}
+				// APK pessoal: o jogo já vem dentro do APK; instala sozinho na primeira abertura.
+				else if (!busy && !GameInstaller.IsInstalled(this) && GameInstaller.HasEmbeddedGame(this))
+				{
+					RunInstall(installer => installer.ImportEmbedded(), LauncherPrefs.Everest(this));
+				}
 			// APK novo com um módulo de patches diferente: o Celeste.dll instalado foi gerado por
 			// um patch antigo e roda sem as correções novas. Refaz o patch (sem reimportar o jogo).
 			else if (!busy && GameInstaller.IsInstalled(this) && !GameInstaller.IsPatchCurrent(this))
@@ -199,6 +209,17 @@ namespace CelesteAndroid
 			settings.AddView(Separator());
 			settings.AddView(layoutLink);
 			panel.AddView(settings, Margins(top: 2, left: 6));
+
+			everestRow = new LinearLayout(this) { Orientation = Orientation.Horizontal };
+			everestToggle = LinkText("");
+			everestToggle.Click += (_, _) => ToggleEverest();
+			everestRow.AddView(everestToggle);
+			everestMods = LinkText("Import mod .zip");
+			everestMods.Click += (_, _) => PickMod();
+			everestModSeparator = Separator();
+			everestRow.AddView(everestModSeparator);
+			everestRow.AddView(everestMods);
+			panel.AddView(everestRow, Margins(top: 1, left: 6));
 
 			progressBox = new LinearLayout(this) { Orientation = Orientation.Vertical, Visibility = ViewStates.Gone };
 			progressBar = new ProgressBar(this, null, Android.Resource.Attribute.ProgressBarStyleHorizontal) { Max = 1000 };
@@ -315,9 +336,15 @@ namespace CelesteAndroid
 			openFolder.Enabled = !busy;
 			openZip.Enabled = !busy;
 			importSaves.Enabled = !busy;
+			everestToggle.Enabled = !busy;
+			bool everestInstalled = installed && GameInstaller.IsEverestInstalled(this);
+			everestMods.Enabled = everestInstalled && !busy;
+			everestMods.Visibility = everestInstalled ? ViewStates.Visible : ViewStates.Gone;
+			everestModSeparator.Visibility = everestInstalled ? ViewStates.Visible : ViewStates.Gone;
 			// A tela é baixa (~360dp): durante a instalação a barra de progresso ocupa o lugar dos links.
 			links.Visibility = busy ? ViewStates.Gone : ViewStates.Visible;
 			settings.Visibility = busy ? ViewStates.Gone : ViewStates.Visible;
+			everestRow.Visibility = busy ? ViewStates.Gone : ViewStates.Visible;
 			// "Controller recommended" deixa de fazer sentido com os controles na tela ligados.
 			hint.Visibility = !busy && installed && !LauncherPrefs.TouchControls(this)
 				? ViewStates.Visible
@@ -325,12 +352,23 @@ namespace CelesteAndroid
 			openFolder.Text = installed ? "Change game files" : "Open game files";
 			if (!busy)
 			{
-				status.Text = installed
-					? "✓  Ready to play"
-					: "Pick the folder of your Celeste PC copy (FNA / \"opengl\" build) or the itch.io .zip.";
+				if (installed)
+				{
+					string? installedEverest = GameInstaller.InstalledEverestVersion(this);
+					status.Text = GameInstaller.IsEverestInstalled(this) && installedEverest != null
+						? $"✓  Ready to play · Everest {installedEverest}"
+						: "✓  Ready to play";
+				}
+				else
+				{
+					status.Text = LauncherPrefs.Everest(this)
+						? "Select the Celeste FNA folder or .zip. Latest stable Everest will be downloaded."
+						: "Pick the folder of your Celeste PC copy (FNA / \"opengl\" build) or the itch.io .zip.";
+				}
 			}
 			driverToggle.Text = "Graphics: " + (LauncherPrefs.Driver(this) == "OpenGL" ? "OpenGL ES" : "Vulkan");
 			touchToggle.Text = "Touch: " + (LauncherPrefs.TouchControls(this) ? "On" : "Off");
+			everestToggle.Text = "Everest: " + (LauncherPrefs.Everest(this) ? "On" : "Off");
 		}
 
 		private void Play()
@@ -353,6 +391,15 @@ namespace CelesteAndroid
 		{
 			LauncherPrefs.SetTouchControls(this, !LauncherPrefs.TouchControls(this));
 			RefreshState();
+		}
+
+		private void ToggleEverest()
+		{
+			LauncherPrefs.SetEverest(this, !LauncherPrefs.Everest(this));
+			RefreshState();
+			Android.Widget.Toast.MakeText(this,
+				"This option applies on the next game import. Everest downloads the latest stable release.",
+				Android.Widget.ToastLength.Long)!.Show();
 		}
 
 		/// <summary>
@@ -463,29 +510,56 @@ namespace CelesteAndroid
 			StartActivityForResult(intent, RequestZip);
 		}
 
+		private void PickMod()
+		{
+			var intent = new Intent(Intent.ActionOpenDocument);
+			intent.AddCategory(Intent.CategoryOpenable);
+			intent.SetType("*/*");
+			intent.PutExtra(Intent.ExtraMimeTypes, new[] { "application/zip", "application/x-zip-compressed" });
+			StartActivityForResult(intent, RequestMod);
+		}
+
 		protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
 		{
 			base.OnActivityResult(requestCode, resultCode, data);
 			Uri? uri = data?.Data;
 			if (resultCode != Result.Ok || uri == null)
 				return;
+			bool useEverest = LauncherPrefs.Everest(this);
 			if (requestCode == RequestFolder)
-				RunInstall(installer => installer.ImportFolder(uri));
+				RunInstall(installer => installer.ImportFolder(uri, useEverest), useEverest);
 			else if (requestCode == RequestZip)
-				RunInstall(installer => installer.ImportZip(uri));
+				RunInstall(installer => installer.ImportZip(uri, useEverest), useEverest);
 			else if (requestCode == RequestSaves)
 				RunJob(installer => $"✓  Imported {installer.ImportSaves(uri)} save file(s)");
+			else if (requestCode == RequestMod)
+				RunJob(installer => $"✓  Imported Everest mod {installer.ImportEverestMod(uri)}");
 		}
 
-		/// <summary>Importação do jogo: cópia → patch → fundo.</summary>
-		private void RunInstall(Action<GameInstaller> import)
+		/// <summary>Importa, instala (opcionalmente) Everest, aplica patches e só então ativa a instalação.</summary>
+		private void RunInstall(Action<GameInstaller> import, bool useEverest)
 		{
 			RunJob(installer =>
 			{
-				import(installer);
-				Repatch(installer);
-				RunOnUiThread(LoadArt);
-				return "✓  Game imported! Ready to play";
+				GameInstaller staged = installer.CreateStaging();
+				staged.ClearStaging();
+				try
+				{
+					import(staged);
+					string? version = useEverest ? staged.InstallLatestEverest() : null;
+					staged.Patch(useEverest);
+					staged.PrepareBackground();
+					staged.CommitInstall(useEverest);
+					RunOnUiThread(LoadArt);
+					return useEverest
+						? $"✓  Game imported with Everest {version}. Ready to play"
+						: "✓  Game imported! Ready to play";
+				}
+				catch
+				{
+					staged.ClearStaging();
+					throw;
+				}
 			});
 		}
 

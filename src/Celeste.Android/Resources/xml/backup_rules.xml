@@ -12,6 +12,15 @@
 	<include domain="sharedpref" path="." />
 	<exclude domain="file" path="Celeste/" />
 	<exclude domain="file" path="Celeste.importing/" />
+	<exclude domain="file" path="Celeste.installing/" />
+	<exclude domain="file" path="Celeste.previous/" />
 	<exclude domain="file" path="patched/" />
+	<exclude domain="file" path="patched.installing/" />
+	<exclude domain="file" path="patched.previous/" />
 	<exclude domain="file" path="background.png" />
+	<exclude domain="file" path="background.installing.png" />
+	<exclude domain="file" path="background.png.previous" />
+	<exclude domain="file" path="install.json" />
+	<exclude domain="file" path="install.json.tmp" />
+	<exclude domain="file" path="install.json.previous" />
 </full-backup-content>
