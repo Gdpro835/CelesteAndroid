@@ -115,20 +115,22 @@ namespace CelesteAndroid
 					throw new InstallException($"Couldn't download Everest main.zip (HTTP {(int)response.StatusCode}).");
 
 				using Stream input = response.Content.ReadAsStreamAsync().GetAwaiter().GetResult();
-				using var output = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16);
 				byte[] buffer = new byte[1 << 16];
 				long downloaded = 0;
-				int read;
-				while ((read = input.ReadAsync(buffer.AsMemory(), timeout.Token).AsTask().GetAwaiter().GetResult()) > 0)
+				using (var output = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16))
 				{
-					downloaded += read;
-					if (downloaded > MaxDownloadBytes)
-						throw new InstallException("Everest main.zip exceeds the 1 GB download safety limit.");
-					output.Write(buffer, 0, read);
-					if (expectedSize > 0)
-						progress($"Downloading Everest main.zip… {downloaded / (1 << 20)} MB", Math.Min(1f, downloaded / (float)expectedSize));
+					int read;
+					while ((read = input.ReadAsync(buffer.AsMemory(), timeout.Token).AsTask().GetAwaiter().GetResult()) > 0)
+					{
+						downloaded += read;
+						if (downloaded > MaxDownloadBytes)
+							throw new InstallException("Everest main.zip exceeds the 1 GB download safety limit.");
+						output.Write(buffer, 0, read);
+						if (expectedSize > 0)
+							progress($"Downloading Everest main.zip… {downloaded / (1 << 20)} MB", Math.Min(1f, downloaded / (float)expectedSize));
+					}
+					output.Flush();
 				}
-				output.Flush();
 
 				if (expectedSize > 0 && downloaded != expectedSize)
 					throw new InstallException($"Everest download is incomplete ({downloaded} of {expectedSize} bytes).");
