@@ -284,8 +284,11 @@ namespace CelesteAndroid
 			}
 			catch (TargetInvocationException e) when (e.InnerException != null)
 			{
-				Log.Error(GameActivity.LogTag, e.InnerException.ToString());
-				throw new InstallException($"Everest MiniInstaller failed in {name}: {e.InnerException.Message}");
+				Exception cause = e;
+				while (cause is TargetInvocationException { InnerException: not null } invocation)
+					cause = invocation.InnerException;
+				Log.Error(GameActivity.LogTag, $"Everest MiniInstaller failed in {name}: {e}");
+				throw new InstallException($"Everest MiniInstaller failed in {name}: {cause.GetType().Name}: {cause.Message}");
 			}
 		}
 
