@@ -117,8 +117,8 @@ namespace CelesteAndroid
 			}
 
 			// NETCoreifier's Cecil resolver runs on Android, where SDK facades aren't exposed as
-			// physical files. Supply mscorlib (and its System.Runtime facade when available) in
-			// both search roots before converting the original .NET Framework executable.
+			// physical files. Supply mscorlib and its System.* facade dependency closure in both
+			// search roots before converting the original .NET Framework executable.
 			InstallFrameworkResolverReferences(gameDir, originalDir, frameworkReferenceDir);
 
 			// Normalize tool DLLs into the game root (some main.zip builds place them under everest-lib).
@@ -220,16 +220,23 @@ namespace CelesteAndroid
 			if (!File.Exists(mscorlib))
 				throw new InstallException("The APK is missing the mscorlib reference assembly needed to convert the original game for Everest.");
 
-			foreach (string name in new[] { "mscorlib.dll", "System.Runtime.dll" })
+			foreach (string source in Directory.EnumerateFiles(referenceDir, "*.dll", SearchOption.TopDirectoryOnly))
 			{
-				string source = Path.Combine(referenceDir, name);
-				if (!File.Exists(source))
+				string name = Path.GetFileName(source);
+				if (!IsFrameworkResolverReference(name))
 					continue;
+
 				File.Copy(source, Path.Combine(gameDir, name), overwrite: true);
 				string originalReference = Path.Combine(originalDir, name);
 				if (!File.Exists(originalReference))
 					File.Copy(source, originalReference);
 			}
+		}
+
+		private static bool IsFrameworkResolverReference(string name)
+		{
+			return name.Equals("mscorlib.dll", StringComparison.OrdinalIgnoreCase)
+				|| (name.StartsWith("System.", StringComparison.OrdinalIgnoreCase) && IsSystemLibrary(name));
 		}
 
 		private static void TryDeleteDirectory(string path)

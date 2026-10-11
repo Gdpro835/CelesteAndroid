@@ -102,8 +102,12 @@
 	<Target Name="_AddPatcherAssets" BeforeTargets="_ComputeAndroidAssetsPaths">
 		<ItemGroup>
 			<AndroidAsset Include="@(CelestePatchModule)" LogicalName="patcher/%(Filename)%(Extension)" />
-			<!-- MiniInstaller's Cecil resolver needs physical facade DLLs for legacy mscorlib references. -->
-			<AndroidAsset Include="@(ReferencePath)" Condition="'%(Filename)' == 'FNA' or '%(Filename)' == 'Steamworks.NET' or '%(Filename)' == 'MonoMod.Patcher' or '%(Filename)' == 'mscorlib' or '%(Filename)' == 'System.Runtime'"
+			<!-- Keep the patcher's direct dependencies and legacy mscorlib facade as physical assets. -->
+			<AndroidAsset Include="@(ReferencePath)" Condition="'%(Filename)' == 'FNA' or '%(Filename)' == 'Steamworks.NET' or '%(Filename)' == 'MonoMod.Patcher' or '%(Filename)' == 'mscorlib'"
+				LogicalName="patcher/%(Filename)%(Extension)" />
+			<!-- NETCoreifier's Cecil resolver follows facade references such as System.Runtime.InteropServices. -->
+			<AndroidAsset Include="@(ReferencePath)"
+				Condition="$([System.String]::Copy('%(Filename)').StartsWith('System.')) and '%(Filename)' != 'System.Drawing.Common' and '%(Filename)' != 'System.Security.Permissions' and '%(Filename)' != 'System.Windows.Extensions'"
 				LogicalName="patcher/%(Filename)%(Extension)" />
 		</ItemGroup>
 	</Target>
