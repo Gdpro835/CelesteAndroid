@@ -322,8 +322,33 @@ namespace CelesteAndroid
 				while (cause is TargetInvocationException { InnerException: not null } invocation)
 					cause = invocation.InnerException;
 				Log.Error(GameActivity.LogTag, $"Everest MiniInstaller failed in {name}: {e}");
-				throw new InstallException($"Everest MiniInstaller failed in {name}: {cause.GetType().Name}: {cause.Message}");
+				string stack = RelevantFailureFrames(cause);
+				throw new InstallException(
+					$"Everest MiniInstaller failed in {name}: {cause.GetType().Name}: {cause.Message}{stack}");
 			}
+		}
+
+		private static string RelevantFailureFrames(Exception exception)
+		{
+			string? stackTrace = exception.StackTrace;
+			if (string.IsNullOrEmpty(stackTrace))
+				return string.Empty;
+
+			var frames = new List<string>(2);
+			foreach (string line in stackTrace.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+			{
+				string frame = line.Trim();
+				if (!frame.Contains("NETCoreifier.", StringComparison.Ordinal)
+					&& !frame.Contains("Mono.Cecil.", StringComparison.Ordinal)
+					&& !frame.Contains("MonoMod.", StringComparison.Ordinal))
+					continue;
+
+				frames.Add(frame);
+				if (frames.Count == 2)
+					break;
+			}
+
+			return frames.Count == 0 ? string.Empty : "\n" + string.Join("\n", frames);
 		}
 
 		private static bool IsFrameworkAssembly(string name)
