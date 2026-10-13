@@ -322,29 +322,29 @@ namespace CelesteAndroid
 				while (cause is TargetInvocationException { InnerException: not null } invocation)
 					cause = invocation.InnerException;
 				Log.Error(GameActivity.LogTag, $"Everest MiniInstaller failed in {name}: {e}");
-				string stack = RelevantFailureFrames(cause);
+				string stack = FirstFailureFrames(cause);
 				throw new InstallException(
 					$"Everest MiniInstaller failed in {name}: {cause.GetType().Name}: {cause.Message}{stack}");
 			}
 		}
 
-		private static string RelevantFailureFrames(Exception exception)
+		private static string FirstFailureFrames(Exception exception)
 		{
 			string? stackTrace = exception.StackTrace;
 			if (string.IsNullOrEmpty(stackTrace))
 				return string.Empty;
 
-			var frames = new List<string>(2);
+			// Include the innermost runtime/Cecil frames too: NETCoreifier's outer overloads alone
+			// don't identify which reflection or metadata operation failed.
+			var frames = new List<string>(5);
 			foreach (string line in stackTrace.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
 			{
 				string frame = line.Trim();
-				if (!frame.Contains("NETCoreifier.", StringComparison.Ordinal)
-					&& !frame.Contains("Mono.Cecil.", StringComparison.Ordinal)
-					&& !frame.Contains("MonoMod.", StringComparison.Ordinal))
+				if (!frame.StartsWith("at ", StringComparison.Ordinal))
 					continue;
 
 				frames.Add(frame);
-				if (frames.Count == 2)
+				if (frames.Count == 5)
 					break;
 			}
 
